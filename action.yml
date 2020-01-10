@@ -1,19 +1,19 @@
 name: 'apptestai-test'
 description: 'github action for apptest.ai test execution'
 author: 'Jae-cheol Kim <forcemax@gmail.com>'
-  inputs:
-    accesskey:
-      description: 'apptest.ai access key'
-      required: true
-    projectid:
-      description: 'apptest.ai project id'
-      required: true
-    packagefile:
-      description: 'package file'
-      required: true
-    testsetname:
-      description: 'test set name (default: ${{ github.sha }})'
-      required: false
+inputs:
+  accesskey:
+    description: 'apptest.ai access key'
+    required: true
+  projectid:
+    description: 'apptest.ai project id'
+    required: true
+  packagefile:
+    description: 'package file'
+    required: true
+  testsetname:
+    description: 'test set name (default: ${{ github.sha }})'
+    required: false
       
 runs:
   using: 'node12'
