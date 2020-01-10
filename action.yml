@@ -12,7 +12,7 @@ inputs:
     description: 'package file'
     required: true
   testsetname:
-    description: 'test set name (default: ${{ github.sha }})'
+    description: 'test set name (default: github context sha)'
     required: false
       
 runs:
