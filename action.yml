@@ -1,13 +1,20 @@
-name: 'Wait'
-description: 'Wait a designated number of milliseconds'
-inputs:
-  milliseconds:  # id of input
-    description: 'number of milliseconds to wait'
-    required: true
-    default: '1000'
-outputs:
-  time: # output will be available to future steps 
-    description: 'The message to output'
+name: 'apptestai-test'
+description: 'github action for apptest.ai test execution'
+author: 'Jae-cheol Kim <forcemax@gmail.com>'
+  inputs:
+    accesskey:
+      description: 'apptest.ai access key'
+      required: true
+    projectid:
+      description: 'apptest.ai project id'
+      required: true
+    packagefile:
+      description: 'package file'
+      required: true
+    testsetname:
+      description: 'test set name (default: ${{ github.sha }})'
+      required: false
+      
 runs:
   using: 'node12'
   main: 'dist/index.js'

@@ -1,7 +1,7 @@
 {
-  "name": "javascript-action",
+  "name": "apptestai-test",
   "version": "1.0.0",
-  "description": "JavaScript Action Template",
+  "description": "github action for apptest.ai test execution",
   "main": "index.js",
   "scripts": {
     "lint": "eslint index.js",
@@ -10,21 +10,26 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/actions/javascript-action.git"
+    "url": "git+https://github.com/forcemax/apptestai-test-action.git"
   },
   "keywords": [
     "GitHub",
     "Actions",
-    "JavaScript"
+    "apptest.ai",
+    "test"
   ],
   "author": "GitHub",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/actions/javascript-action/issues"
+    "url": "https://github.com/forcemax/apptestai-test-action/issues"
   },
-  "homepage": "https://github.com/actions/javascript-action#readme",
+  "homepage": "https://github.com/forcemax/apptestai-test-action#readme",
   "dependencies": {
-    "@actions/core": "^1.1.1"
+    "@actions/core": "^1.1.1",
+    "@actions/github": "^2.0.0",
+    "child_process": "^1.0.2",
+    "fs": "0.0.1-security",
+    "request": "^2.88.0"
   },
   "devDependencies": {
     "@zeit/ncc": "^0.20.5",
