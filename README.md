@@ -1,8 +1,6 @@
-# github action for Apptest.ai test execution 
+# github action for apptest.ai test execution 
 
 ## Usage
-
-You can now consume the action by referencing the v1 branch
 
 ```yaml
 uses: actions/apptestai-test@v1
