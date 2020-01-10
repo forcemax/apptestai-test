@@ -69,7 +69,7 @@ async function run() {
       let ret = await http_promise_execute;
 
       ts_id = ret['data']['tsid'];
-      core.debug((new Date()).toTimeString() + " Test initated.");
+      core.info((new Date()).toTimeString() + " Test initated.");
     } catch(error) {
       // Promise rejected
       throw Error(error);
@@ -81,16 +81,14 @@ async function run() {
       // wait for next try
       await wait(15000);
       step_count = step_count + 1;
-      core.debug((new Date()).toTimeString() + " Test is progressing... " + String(step_count * 15) + "sec.");
+      core.info((new Date()).toTimeString() + " Test is progressing... " + String(step_count * 15) + "sec.");
       
       try {
         let http_promise_check = check_finish(accesskey, ts_id);
         let ret = await http_promise_check;
 
-        console.log(ret);
-
         if (ret['complete'] == true) {
-          core.debug((new Date()).toTimeString() + " Test finished.");
+          core.info((new Date()).toTimeString() + " Test finished.");
           core.setOutput(ret['data']['result_xml']);
           running = false;
         }
