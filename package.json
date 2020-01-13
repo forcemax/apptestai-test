@@ -29,7 +29,8 @@
     "@actions/github": "^2.0.0",
     "child_process": "^1.0.2",
     "fs": "0.0.1-security",
-    "request": "^2.88.0"
+    "request": "^2.88.0",
+    "xml2js": "^0.4.23"
   },
   "devDependencies": {
     "@zeit/ncc": "^0.20.5",

@@ -3,6 +3,7 @@ const core = require('@actions/core');
 const wait = require('./wait');
 const request = require('request');
 const fs = require('fs');
+const xml2js = require('xml2js')
 
 function execute_test(accesskey, projectid, packagefile, testsetname) {
   return new Promise((resolve, reject) => {
@@ -50,6 +51,28 @@ function check_finish(accesskey, ts_id) {
   });
 }
 
+function getErrorInXml(xmlString) {
+  var parser = xml2js.Parser({ attrkey: "ATTR" });
+  var errors = new Array();
+
+  try {
+    parser.parseString(xmlString, function(err, result) {
+      if (err) {
+        return;
+      }
+      var testcases = result['testsuites']['testsuite'][0]['testcase'];
+      testcases.forEach(element => {
+        if ('error' in element) {
+          errors.push(element);
+        }
+      });
+    });
+    return errors;
+  } catch (error) {
+    return;
+  }
+}
+
 // most @actions toolkit packages have async methods
 async function run() {
   try {
@@ -57,6 +80,18 @@ async function run() {
     const accesskey = core.getInput('accesskey');
     const projectid = core.getInput('projectid');
     const packagefile = core.getInput('packagefile');
+
+    if (!accesskey) {
+      throw Error("accesskey is required parameter.");
+    }
+
+    if (!projectid) {
+      throw Error("projectid is required parameter.");
+    }
+
+    if (!packagefile) {
+      throw Error("packagefile is required parameter.");
+    }
 
     var testsetname = core.getInput('testsetname');
     if (!testsetname) {
@@ -89,7 +124,24 @@ async function run() {
 
         if (ret['complete'] == true) {
           core.info((new Date()).toTimeString() + " Test finished.");
-          core.setOutput(ret['data']['result_xml']);
+          // core.setOutput(ret['data']['result_xml']);
+          var errors = getErrorInXml(ret['data']['result_xml']);
+          if (errors) {
+            if (errors.length > 0) {
+              var error_msg = '';
+              errors.forEach(element => {
+                var msg = element['error'][0]['ATTR']['message'];
+                if (error_msg == '') {
+                  error_msg = msg;
+                } else {
+                  error_msg = error_msg + ' ' + msg;
+                }
+              });
+              core.setFailed(error_msg);
+            } else {
+              core.setOutput("no error found.");
+            }
+          }
           running = false;
         }
         retry_count = 0;
@@ -108,4 +160,7 @@ async function run() {
   }
 }
 
-run()
+module.exports = {getErrorInXml};
+if (require.main === module) {
+  run();
+}
