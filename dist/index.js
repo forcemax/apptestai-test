@@ -2038,7 +2038,6 @@ function check_finish(accesskey, ts_id) {
       port: 443,
     };
 
-    console.log(options);
     request(options, function (error, response, body) {
       if (!error && response.statusCode == 200) {
         var jsonbody = JSON.parse(body);
