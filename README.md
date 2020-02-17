@@ -1,12 +1,31 @@
-# github action for apptest.ai test execution 
+# apptest.ai test action
 
-## Usage
+github action for apptest.ai test execution 
 
+## Inputs
+
+Input your apptest.ai Access Key, Project ID, Package file
+refer to more information from https://app.apptest.ai/#/main/integrations
+
+**Required** apptest.ai Access Key, Project ID, Package file.
+
+This is the example to using github action <br />
+Please change to the your input.
+
+Setup Access Key using github secret name : APPTESTAI_KEY
+
+apptest.ai Github Action Marketplace link : https://github.com/marketplace/actions/apptestai-test
+
+## Example usage
 ```yaml
-uses: actions/apptestai-test@v1
-with:
-  accesskey: 12FSIF1234FJ46DA11AGH1 (required)
-  projectid: 1019 (required)
-  packagefile: build/app/outputs/apk/release/app-release.apk (required)
-  testsetname: ${{ github.sha }} (not required, default github.sha )
+    - name: Test app on apptest.ai
+      uses: forcemax/apptestai-test@v1
+      with:
+        accesskey: ${{ secrets.APPTESTAI_KEY }}
+        projectid: 1120
+        packagefile: android/app/build/outputs/apk/release/app-release.apk
 ```
+
+Running example is available on 
+Android : https://github.com/forcemax/mattermost-mobile/blob/master/.github/workflows/main.yml
+iOS : https://github.com/forcemax/mattermost-mobile/blob/master/.github/workflows/main-iOS.yml
