@@ -19,3 +19,14 @@ test('xml2js', async() => {
     var errors = index.getErrorInXml(xmlString);
     expect(errors.length).toBe(2);
 });
+
+test('json result parse', async() => {
+    var jsonString = '{\"testsuites\": {\"testsuite\": [{\"testcase\": [{\"system-out\": {\"contents\": [\"https://app.apptest.ai/#/main/testLab/tResult/summary/0?tid=879851\"]}, \"name\": \"LGE Nexus_5X / ANDROID 8.1.0\", \"time\": \"1828\"}, {\"error\": {\"message\": \"https://app.apptest.ai/#/main/testLab/tResult/summary/0?tid=879852\"}, \"name\": \"SAMSUNG GALAXY_NOTE9 / ANDROID 9\", \"time\": \"1817\"}], \"name\": \"apps-android-wikipedia.TestBot\"}], \"name\": \"TestBot Test\"}}';
+    var errors = index.getErrorInJson(jsonString);
+    expect(errors.length).toBe(1);
+});
+
+test('print sample result', async() => {
+    var jsonString = '{\"testsuites\": {\"testsuite\": [{\"testcase\": [{\"system-out\": {\"contents\": [\"https://app.apptest.ai/#/main/testLab/tResult/summary/0?tid=879851\"]}, \"name\": \"LGE Nexus_5X / ANDROID 8.1.0\", \"time\": \"1828\"}, {\"error\": {\"message\": \"https://app.apptest.ai/#/main/testLab/tResult/summary/0?tid=879852\"}, \"name\": \"SAMSUNG GALAXY_NOTE9 / ANDROID 9\", \"time\": \"1817\"}], \"name\": \"apps-android-wikipedia.TestBot\"}], \"name\": \"TestBot Test\"}}';
+    index.printResult(jsonString);
+});

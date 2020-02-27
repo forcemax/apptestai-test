@@ -9,7 +9,7 @@ refer to more information from https://app.apptest.ai/#/main/integrations
 
 **Required** apptest.ai Access Key, Project ID, Package file.
 
-Setup Access Key using github secret name : APPTESTAI_KEY
+Setup Access Key using github secret name : APPTEST_AI_ACCESS_KEY
 
 apptest.ai Github Action Marketplace link : https://github.com/marketplace/actions/apptestai-test
 
@@ -21,9 +21,9 @@ Please change to the your input.
     - name: Test app on apptest.ai
       uses: forcemax/apptestai-test@v1
       with:
-        accesskey: ${{ secrets.APPTESTAI_KEY }}
-        projectid: 1120
-        packagefile: android/app/build/outputs/apk/release/app-release.apk
+        access_key: ${{ secrets.APPTEST_AI_ACCESS_KEY }}
+        project_id: 1120
+        binary_path: android/app/build/outputs/apk/release/app-release.apk
 ```
 
 Running example is available on <br />

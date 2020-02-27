@@ -4,13 +4,20 @@ const wait = require('./wait');
 const request = require('request');
 const fs = require('fs');
 const xml2js = require('xml2js')
+const colors = require('colors/safe');
 
 function execute_test(accesskey, projectid, packagefile, testsetname) {
+  var auth_token = accesskey.split(':');
+
   return new Promise((resolve, reject) => {
     const options = {
       method: "POST",
-      url: "https://api.apptest.ai/test_set/queuing?access_key=" + accesskey,
+      url: "https://api.apptest.ai//openapi/v1/test/run",
       port: 443,
+      auth: {
+        user: auth_token[0],
+        pass: auth_token[1]
+      },
       headers: {
         "Content-Type": "multipart/form-data"
       },
@@ -23,7 +30,7 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
     request(options, function (error, response, body) {
       if (!error && response.statusCode == 200) {
         var jsonbody = JSON.parse(body);
-        resolve(jsonbody)
+        resolve(jsonbody);
       } else {
         reject(error);
       }
@@ -31,12 +38,18 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
   });
 }
 
-function check_finish(accesskey, ts_id) {
+function check_finish(accesskey, projectid, ts_id) {
+  var auth_token = accesskey.split(':');
+
   return new Promise((resolve, reject) => {
     const options = {
       method: "GET",
-      url: "https://api.apptest.ai/test_set/"+String(ts_id)+"/ci_info?access_key=" + accesskey,
+      url: "https://api.apptest.ai/openapi/v1/project/"+String(projectid)+"/testset/" + String(ts_id) + "/result/all",
       port: 443,
+      auth: {
+        user: auth_token[0],
+        pass: auth_token[1]
+      }
     };
 
     request(options, function (error, response, body) {
@@ -72,34 +85,63 @@ function getErrorInXml(xmlString) {
   }
 }
 
+function printResult(jsonString) {
+  var result = JSON.parse(jsonString);
+  core.info("+-----------------------------------------------------------------+");
+  core.info("|                        Device                        |  Result  |");
+  core.info("+-----------------------------------------------------------------+");
+
+  var testcases = result.testsuites.testsuite[0].testcase;
+  testcases.forEach(element => {
+    var device = '| ' + element.name.padEnd(52) + " |  " + ('error' in element ? colors.red('Failed') : colors.green('Passed')) + "  |";
+    core.info(device);
+  });
+
+  core.info("+-----------------------------------------------------------------+");
+}
+
+function getErrorInJson(jsonString) {
+  var result = JSON.parse(jsonString);
+  var errors = new Array();
+  
+  var testcases = result.testsuites.testsuite[0].testcase;
+  testcases.forEach(element => {
+    if ('error' in element) {
+      errors.push(element);
+    }
+  });
+
+  return errors;
+}
+
 // most @actions toolkit packages have async methods
 async function run() {
   try {
     var running = true;
-    const accesskey = core.getInput('accesskey');
-    const projectid = core.getInput('projectid');
-    const packagefile = core.getInput('packagefile');
+    const accesskey = core.getInput('access_key');
+    const projectid = core.getInput('project_id');
+    const binarypath = core.getInput('binary_path');
 
     if (!accesskey) {
-      throw Error("accesskey is required parameter.");
+      throw Error("access_key is required parameter.");
     }
 
     if (!projectid) {
-      throw Error("projectid is required parameter.");
+      throw Error("project_id is required parameter.");
     }
 
-    if (!packagefile) {
-      throw Error("packagefile is required parameter.");
+    if (!binarypath) {
+      throw Error("binary_path is required parameter.");
     }
 
-    var testsetname = core.getInput('testsetname');
+    var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
       testsetname = github.context.sha;
     }
 
     var ts_id;
     try {
-      let http_promise_execute = execute_test(accesskey, projectid, packagefile, testsetname);
+      let http_promise_execute = execute_test(accesskey, projectid, binarypath, testsetname);
       let ret = await http_promise_execute;
 
       ts_id = ret['data']['tsid'];
@@ -118,18 +160,19 @@ async function run() {
       core.info((new Date()).toTimeString() + " Test is progressing... " + String(step_count * 15) + "sec.");
       
       try {
-        let http_promise_check = check_finish(accesskey, ts_id);
+        let http_promise_check = check_finish(accesskey, projectid, ts_id);
         let ret = await http_promise_check;
 
         if (ret['complete'] == true) {
           core.info((new Date()).toTimeString() + " Test finished.");
           // core.setOutput(ret['data']['result_xml']);
-          var errors = getErrorInXml(ret['data']['result_xml']);
+          printResult(ret['data']['result_json']);          
+          var errors = getErrorInJson(ret['data']['result_json']);
           if (errors) {
             if (errors.length > 0) {
               var error_msg = '';
               errors.forEach(element => {
-                var msg = element['error'][0]['ATTR']['message'];
+                var msg = element.error.message;
                 if (error_msg == '') {
                   error_msg = msg;
                 } else {
@@ -159,7 +202,7 @@ async function run() {
   }
 }
 
-module.exports = {getErrorInXml};
+module.exports = {getErrorInXml, getErrorInJson, printResult};
 if (require.main === module) {
   run();
 }
