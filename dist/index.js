@@ -2118,17 +2118,17 @@ function getErrorInXml(xmlString) {
 
 function printResult(jsonString) {
   var result = JSON.parse(jsonString);
-  core.info("+-----------------------------------------------------------------+");
-  core.info("|                        Device                        |  Result  |");
-  core.info("+-----------------------------------------------------------------+");
+  console.log("+-----------------------------------------------------------------+");
+  console.log("|                        Device                        |  Result  |");
+  console.log("+-----------------------------------------------------------------+");
 
   var testcases = result.testsuites.testsuite[0].testcase;
   testcases.forEach(element => {
     var device = '| ' + element.name.padEnd(52) + " |  " + ('error' in element ? colors.red('Failed') : colors.green('Passed')) + "  |";
-    core.info(device);
+    console.log(device);
   });
 
-  core.info("+-----------------------------------------------------------------+");
+  console.log("+-----------------------------------------------------------------+");
 }
 
 function getErrorInJson(jsonString) {
