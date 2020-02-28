@@ -2359,31 +2359,31 @@ function create_test_results_directory() {
 
 function create_test_result_file(filename, content) {
   var dir = './test-results';
-  var filepath = dir + "/" + filename;
+  var filepath = dir + '/' + filename;
 
   fs.writeFile(filepath, content, (error) => {
     if (error) {
-      console.error("cannot create file " + filepath);
+      console.error('cannot create file ' + filepath);
     }
   });
 }
 
 function get_result(json_string, error_only=false) {
   var result = JSON.parse(json_string);
-  var outputTable = "";
-  outputTable += "+-----------------------------------------------------------------+\n";
-  outputTable += "|                        Device                        |  Result  |\n";
-  outputTable += "+-----------------------------------------------------------------+\n";
+  var outputTable = "\n";
+  outputTable += '+-----------------------------------------------------------------+\n';
+  outputTable += '|                        Device                        |  Result  |\n';
+  outputTable += '+-----------------------------------------------------------------+\n';
 
   var testcases = result.testsuites.testsuite[0].testcase;
   testcases.forEach(element => {
     if (error_only && ! ('error' in element))
       return;
     outputTable += '| ' + element.name.padEnd(52) + ' |  ' + ('error' in element ? c.red('Failed') : c.green('Passed')) + '  |\n';
-    if ('error' in element) 
-      outputTable += '<a href="' + element.error.message + '">'+ element.name +'</a>\n';
+    if (error_only && 'error' in element) 
+      outputTable += '| ' + element.error.message + '\n';
   });
-  outputTable += "+-----------------------------------------------------------------+\n";
+  outputTable += '+-----------------------------------------------------------------+\n';
 
   return outputTable;
 }
@@ -2480,12 +2480,13 @@ async function run() {
 
           var errors = get_error_in_json(ret['data']['result_json']);
           if (errors) {
+            var output_table = get_result(ret['data']['result_json']);
+            core.info(output_table);
+
             if (errors.length > 0) {
+              c.enabled = false;
               var output_error = get_result(ret['data']['result_json'], true);
               core.setFailed(output_error);
-            } else {
-              var output_table = get_result(ret['data']['result_json']);
-              core.setOutput(output_table);
             }
           }
 
