@@ -418,7 +418,190 @@ module.exports = {
 
 
 /***/ }),
-/* 14 */,
+/* 14 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+"use strict";
+
+
+const isObject = val => val !== null && typeof val === 'object' && !Array.isArray(val);
+const identity = val => val;
+
+/* eslint-disable no-control-regex */
+// this is a modified version of https://github.com/chalk/ansi-regex (MIT License)
+const ANSI_REGEX = /[\u001b\u009b][[\]#;?()]*(?:(?:(?:[^\W_]*;?[^\W_]*)\u0007)|(?:(?:[0-9]{1,4}(;[0-9]{0,4})*)?[~0-9=<>cf-nqrtyA-PRZ]))/g;
+
+const create = () => {
+  const colors = { enabled: true, visible: true, styles: {}, keys: {} };
+
+  if ('FORCE_COLOR' in process.env) {
+    colors.enabled = process.env.FORCE_COLOR !== '0';
+  }
+
+  const ansi = style => {
+    let open = style.open = `\u001b[${style.codes[0]}m`;
+    let close = style.close = `\u001b[${style.codes[1]}m`;
+    let regex = style.regex = new RegExp(`\\u001b\\[${style.codes[1]}m`, 'g');
+    style.wrap = (input, newline) => {
+      if (input.includes(close)) input = input.replace(regex, close + open);
+      let output = open + input + close;
+      // see https://github.com/chalk/chalk/pull/92, thanks to the
+      // chalk contributors for this fix. However, we've confirmed that
+      // this issue is also present in Windows terminals
+      return newline ? output.replace(/\r*\n/g, `${close}$&${open}`) : output;
+    };
+    return style;
+  };
+
+  const wrap = (style, input, newline) => {
+    return typeof style === 'function' ? style(input) : style.wrap(input, newline);
+  };
+
+  const style = (input, stack) => {
+    if (input === '' || input == null) return '';
+    if (colors.enabled === false) return input;
+    if (colors.visible === false) return '';
+    let str = '' + input;
+    let nl = str.includes('\n');
+    let n = stack.length;
+    if (n > 0 && stack.includes('unstyle')) {
+      stack = [...new Set(['unstyle', ...stack])].reverse();
+    }
+    while (n-- > 0) str = wrap(colors.styles[stack[n]], str, nl);
+    return str;
+  };
+
+  const define = (name, codes, type) => {
+    colors.styles[name] = ansi({ name, codes });
+    let keys = colors.keys[type] || (colors.keys[type] = []);
+    keys.push(name);
+
+    Reflect.defineProperty(colors, name, {
+      configurable: true,
+      enumerable: true,
+      set(value) {
+        colors.alias(name, value);
+      },
+      get() {
+        let color = input => style(input, color.stack);
+        Reflect.setPrototypeOf(color, colors);
+        color.stack = this.stack ? this.stack.concat(name) : [name];
+        return color;
+      }
+    });
+  };
+
+  define('reset', [0, 0], 'modifier');
+  define('bold', [1, 22], 'modifier');
+  define('dim', [2, 22], 'modifier');
+  define('italic', [3, 23], 'modifier');
+  define('underline', [4, 24], 'modifier');
+  define('inverse', [7, 27], 'modifier');
+  define('hidden', [8, 28], 'modifier');
+  define('strikethrough', [9, 29], 'modifier');
+
+  define('black', [30, 39], 'color');
+  define('red', [31, 39], 'color');
+  define('green', [32, 39], 'color');
+  define('yellow', [33, 39], 'color');
+  define('blue', [34, 39], 'color');
+  define('magenta', [35, 39], 'color');
+  define('cyan', [36, 39], 'color');
+  define('white', [37, 39], 'color');
+  define('gray', [90, 39], 'color');
+  define('grey', [90, 39], 'color');
+
+  define('bgBlack', [40, 49], 'bg');
+  define('bgRed', [41, 49], 'bg');
+  define('bgGreen', [42, 49], 'bg');
+  define('bgYellow', [43, 49], 'bg');
+  define('bgBlue', [44, 49], 'bg');
+  define('bgMagenta', [45, 49], 'bg');
+  define('bgCyan', [46, 49], 'bg');
+  define('bgWhite', [47, 49], 'bg');
+
+  define('blackBright', [90, 39], 'bright');
+  define('redBright', [91, 39], 'bright');
+  define('greenBright', [92, 39], 'bright');
+  define('yellowBright', [93, 39], 'bright');
+  define('blueBright', [94, 39], 'bright');
+  define('magentaBright', [95, 39], 'bright');
+  define('cyanBright', [96, 39], 'bright');
+  define('whiteBright', [97, 39], 'bright');
+
+  define('bgBlackBright', [100, 49], 'bgBright');
+  define('bgRedBright', [101, 49], 'bgBright');
+  define('bgGreenBright', [102, 49], 'bgBright');
+  define('bgYellowBright', [103, 49], 'bgBright');
+  define('bgBlueBright', [104, 49], 'bgBright');
+  define('bgMagentaBright', [105, 49], 'bgBright');
+  define('bgCyanBright', [106, 49], 'bgBright');
+  define('bgWhiteBright', [107, 49], 'bgBright');
+
+  colors.ansiRegex = ANSI_REGEX;
+  colors.hasColor = colors.hasAnsi = str => {
+    colors.ansiRegex.lastIndex = 0;
+    return typeof str === 'string' && str !== '' && colors.ansiRegex.test(str);
+  };
+
+  colors.alias = (name, color) => {
+    let fn = typeof color === 'string' ? colors[color] : color;
+
+    if (typeof fn !== 'function') {
+      throw new TypeError('Expected alias to be the name of an existing color (string) or a function');
+    }
+
+    if (!fn.stack) {
+      Reflect.defineProperty(fn, 'name', { value: name });
+      colors.styles[name] = fn;
+      fn.stack = [name];
+    }
+
+    Reflect.defineProperty(colors, name, {
+      configurable: true,
+      enumerable: true,
+      set(value) {
+        colors.alias(name, value);
+      },
+      get() {
+        let color = input => style(input, color.stack);
+        Reflect.setPrototypeOf(color, colors);
+        color.stack = this.stack ? this.stack.concat(fn.stack) : fn.stack;
+        return color;
+      }
+    });
+  };
+
+  colors.theme = custom => {
+    if (!isObject(custom)) throw new TypeError('Expected theme to be an object');
+    for (let name of Object.keys(custom)) {
+      colors.alias(name, custom[name]);
+    }
+    return colors;
+  };
+
+  colors.alias('unstyle', str => {
+    if (typeof str === 'string' && str !== '') {
+      colors.ansiRegex.lastIndex = 0;
+      return str.replace(colors.ansiRegex, '');
+    }
+    return '';
+  });
+
+  colors.alias('noop', str => str);
+  colors.none = colors.clear = colors.noop;
+
+  colors.stripColor = colors.unstyle;
+  colors.symbols = __webpack_require__(670);
+  colors.define = define;
+  return colors;
+};
+
+module.exports = create();
+module.exports.create = create;
+
+
+/***/ }),
 /* 15 */,
 /* 16 */
 /***/ (function(module) {
@@ -663,22 +846,7 @@ module.exports = function generate_propertyNames(it, $keyword, $ruleType) {
 
 /***/ }),
 /* 36 */,
-/* 37 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-//
-// Remark: Requiring this file will use the "safe" colors API,
-// which will not touch String.prototype.
-//
-//   var colors = require('colors/safe');
-//   colors.red("foo")
-//
-//
-var colors = __webpack_require__(464);
-module.exports = colors;
-
-
-/***/ }),
+/* 37 */,
 /* 38 */,
 /* 39 */
 /***/ (function(module) {
@@ -943,24 +1111,7 @@ module.exports = ["ac","com.ac","edu.ac","gov.ac","net.ac","mil.ac","org.ac","ad
 /* 53 */,
 /* 54 */,
 /* 55 */,
-/* 56 */
-/***/ (function(module) {
-
-module.exports = function(colors) {
-  // RoY G BiV
-  var rainbowColors = ['red', 'yellow', 'green', 'blue', 'magenta'];
-  return function(letter, i, exploded) {
-    if (letter === ' ') {
-      return letter;
-    } else {
-      return colors[rainbowColors[i++ % rainbowColors.length]](letter);
-    }
-  };
-};
-
-
-
-/***/ }),
+/* 56 */,
 /* 57 */,
 /* 58 */,
 /* 59 */,
@@ -1716,7 +1867,97 @@ function write(key, options) {
 /* 79 */,
 /* 80 */,
 /* 81 */,
-/* 82 */,
+/* 82 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs = __importStar(__webpack_require__(747));
+const core_1 = __webpack_require__(943);
+const path_1 = __webpack_require__(622);
+const internal_utils_1 = __webpack_require__(931);
+/**
+ * Creates a specification that describes how each file that is part of the artifact will be uploaded
+ * @param artifactName the name of the artifact being uploaded. Used during upload to denote where the artifact is stored on the server
+ * @param rootDirectory an absolute file path that denotes the path that should be removed from the beginning of each artifact file
+ * @param artifactFiles a list of absolute file paths that denote what should be uploaded as part of the artifact
+ */
+function getUploadSpecification(artifactName, rootDirectory, artifactFiles) {
+    internal_utils_1.checkArtifactName(artifactName);
+    const specifications = [];
+    if (!fs.existsSync(rootDirectory)) {
+        throw new Error(`Provided rootDirectory ${rootDirectory} does not exist`);
+    }
+    if (!fs.lstatSync(rootDirectory).isDirectory()) {
+        throw new Error(`Provided rootDirectory ${rootDirectory} is not a valid directory`);
+    }
+    // Normalize and resolve, this allows for either absolute or relative paths to be used
+    rootDirectory = path_1.normalize(rootDirectory);
+    rootDirectory = path_1.resolve(rootDirectory);
+    /*
+       Example to demonstrate behavior
+       
+       Input:
+         artifactName: my-artifact
+         rootDirectory: '/home/user/files/plz-upload'
+         artifactFiles: [
+           '/home/user/files/plz-upload/file1.txt',
+           '/home/user/files/plz-upload/file2.txt',
+           '/home/user/files/plz-upload/dir/file3.txt'
+         ]
+       
+       Output:
+         specifications: [
+           ['/home/user/files/plz-upload/file1.txt', 'my-artifact/file1.txt'],
+           ['/home/user/files/plz-upload/file1.txt', 'my-artifact/file2.txt'],
+           ['/home/user/files/plz-upload/file1.txt', 'my-artifact/dir/file3.txt']
+         ]
+    */
+    for (let file of artifactFiles) {
+        if (!fs.existsSync(file)) {
+            throw new Error(`File ${file} does not exist`);
+        }
+        if (!fs.lstatSync(file).isDirectory()) {
+            // Normalize and resolve, this allows for either absolute or relative paths to be used
+            file = path_1.normalize(file);
+            file = path_1.resolve(file);
+            if (!file.startsWith(rootDirectory)) {
+                throw new Error(`The rootDirectory: ${rootDirectory} is not a parent directory of the file: ${file}`);
+            }
+            /*
+              uploadFilePath denotes where the file will be uploaded in the file container on the server. During a run, if multiple artifacts are uploaded, they will all
+              be saved in the same container. The artifact name is used as the root directory in the container to separate and distinguish uploaded artifacts
+      
+              path.join handles all the following cases and would return 'artifact-name/file-to-upload.txt
+                join('artifact-name/', 'file-to-upload.txt')
+                join('artifact-name/', '/file-to-upload.txt')
+                join('artifact-name', 'file-to-upload.txt')
+                join('artifact-name', '/file-to-upload.txt')
+            */
+            specifications.push({
+                absoluteFilePath: file,
+                uploadFilePath: path_1.join(artifactName, file.replace(rootDirectory, ''))
+            });
+        }
+        else {
+            // Directories are rejected by the server during upload
+            core_1.debug(`Removing ${file} from rawSearchResults because it is a directory`);
+        }
+    }
+    return specifications;
+}
+exports.getUploadSpecification = getUploadSpecification;
+//# sourceMappingURL=internal-upload-specification.js.map
+
+/***/ }),
 /* 83 */,
 /* 84 */,
 /* 85 */
@@ -2030,12 +2271,26 @@ module.exports = {
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
 const github = __webpack_require__(469);
+const artifact = __webpack_require__(214);
 const core = __webpack_require__(470);
 const wait = __webpack_require__(949);
 const request = __webpack_require__(830);
 const fs = __webpack_require__(747);
 const xml2js = __webpack_require__(992)
-const colors = __webpack_require__(37);
+const c = __webpack_require__(14);
+
+const artifactClient = artifact.create()
+const artifactName = 'apptest.ai test results';
+
+const files = [
+  'test-results/tests.html',
+  'test-results/tests.xml'
+]
+
+const rootDirectory = '.'
+const options = {
+    continueOnError: false
+}
 
 function execute_test(accesskey, projectid, packagefile, testsetname) {
   var auth_token = accesskey.split(':');
@@ -2094,12 +2349,51 @@ function check_finish(accesskey, projectid, ts_id) {
   });
 }
 
-function getErrorInXml(xmlString) {
+function create_test_results_directory() {
+  var dir = './test-results';
+
+  if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir);
+  }
+}
+
+function create_test_result_file(filename, content) {
+  var dir = './test-results';
+  var filepath = dir + "/" + filename;
+
+  fs.writeFile(filepath, content, (error) => {
+    if (error) {
+      console.error("cannot create file " + filepath);
+    }
+  });
+}
+
+function get_result(json_string, error_only=false) {
+  var result = JSON.parse(json_string);
+  var outputTable = "";
+  outputTable += "+-----------------------------------------------------------------+\n";
+  outputTable += "|                        Device                        |  Result  |\n";
+  outputTable += "+-----------------------------------------------------------------+\n";
+
+  var testcases = result.testsuites.testsuite[0].testcase;
+  testcases.forEach(element => {
+    if (error_only && ! ('error' in element))
+      return;
+    outputTable += '| ' + element.name.padEnd(52) + ' |  ' + ('error' in element ? c.red('Failed') : c.green('Passed')) + '  |\n';
+    if ('error' in element) 
+      outputTable += '<a href="' + element.error.message + '">'+ element.name +'</a>\n';
+  });
+  outputTable += "+-----------------------------------------------------------------+\n";
+
+  return outputTable;
+}
+
+function get_error_in_xml(xml_string) {
   var parser = xml2js.Parser({ attrkey: "ATTR" });
   var errors = new Array();
 
   try {
-    parser.parseString(xmlString, function(err, result) {
+    parser.parseString(xml_string, function(err, result) {
       if (err) {
         return;
       }
@@ -2116,23 +2410,8 @@ function getErrorInXml(xmlString) {
   }
 }
 
-function printResult(jsonString) {
-  var result = JSON.parse(jsonString);
-  console.log("+-----------------------------------------------------------------+");
-  console.log("|                        Device                        |  Result  |");
-  console.log("+-----------------------------------------------------------------+");
-
-  var testcases = result.testsuites.testsuite[0].testcase;
-  testcases.forEach(element => {
-    var device = '| ' + element.name.padEnd(52) + " |  " + ('error' in element ? colors.red('Failed') : colors.green('Passed')) + "  |";
-    console.log(device);
-  });
-
-  console.log("+-----------------------------------------------------------------+");
-}
-
-function getErrorInJson(jsonString) {
-  var result = JSON.parse(jsonString);
+function get_error_in_json(json_string) {
+  var result = JSON.parse(json_string);
   var errors = new Array();
   
   var testcases = result.testsuites.testsuite[0].testcase;
@@ -2168,6 +2447,7 @@ async function run() {
     var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
       testsetname = github.context.sha;
+      console.log(github.context);
     }
 
     var ts_id;
@@ -2196,25 +2476,26 @@ async function run() {
 
         if (ret['complete'] == true) {
           core.info((new Date()).toTimeString() + " Test finished.");
-          // core.setOutput(ret['data']['result_xml']);
-          printResult(ret['data']['result_json']);          
-          var errors = getErrorInJson(ret['data']['result_json']);
+
+          var errors = get_error_in_json(ret['data']['result_json']);
           if (errors) {
             if (errors.length > 0) {
-              var error_msg = '';
-              errors.forEach(element => {
-                var msg = element.error.message;
-                if (error_msg == '') {
-                  error_msg = msg;
-                } else {
-                  error_msg = error_msg + ' ' + msg;
-                }
-              });
-              core.setFailed(error_msg);
+              var output_error = get_result(ret['data']['result_json'], true);
+              core.setFailed(output_error);
             } else {
-              core.setOutput("no error found.");
+              var output_table = get_result(ret['data']['result_json']);
+              core.setOutput(output_table);
             }
           }
+
+          create_test_results_directory();
+          core.info((new Date()).toTimeString() + " Test result(Full HTML) saved: test-results/tests.html");
+          create_test_result_file("tests.html", ret['data']['result_html']);
+          core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
+          create_test_result_file("tests.xml", ret['data']['result_xml']);
+
+          await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
+        
           running = false;
         }
         retry_count = 0;
@@ -2233,7 +2514,7 @@ async function run() {
   }
 }
 
-module.exports = {getErrorInXml, getErrorInJson, printResult};
+module.exports = {get_error_in_xml, get_error_in_json, get_result};
 if (require.main === require.cache[eval('__filename')]) {
   run();
 }
@@ -2449,150 +2730,9 @@ exports.generateBase = generateBase
 
 /***/ }),
 /* 114 */,
-/* 115 */
-/***/ (function(module) {
-
-"use strict";
-/*
-MIT License
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy of
-this software and associated documentation files (the "Software"), to deal in
-the Software without restriction, including without limitation the rights to
-use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
-of the Software, and to permit persons to whom the Software is furnished to do
-so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
-
-
-module.exports = function(flag, argv) {
-  argv = argv || process.argv;
-
-  var terminatorPos = argv.indexOf('--');
-  var prefix = /^-{1,2}/.test(flag) ? '' : '--';
-  var pos = argv.indexOf(prefix + flag);
-
-  return pos !== -1 && (terminatorPos === -1 ? true : pos < terminatorPos);
-};
-
-
-/***/ }),
+/* 115 */,
 /* 116 */,
-/* 117 */
-/***/ (function(module) {
-
-/*
-The MIT License (MIT)
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-var styles = {};
-module.exports = styles;
-
-var codes = {
-  reset: [0, 0],
-
-  bold: [1, 22],
-  dim: [2, 22],
-  italic: [3, 23],
-  underline: [4, 24],
-  inverse: [7, 27],
-  hidden: [8, 28],
-  strikethrough: [9, 29],
-
-  black: [30, 39],
-  red: [31, 39],
-  green: [32, 39],
-  yellow: [33, 39],
-  blue: [34, 39],
-  magenta: [35, 39],
-  cyan: [36, 39],
-  white: [37, 39],
-  gray: [90, 39],
-  grey: [90, 39],
-
-  brightRed: [91, 39],
-  brightGreen: [92, 39],
-  brightYellow: [93, 39],
-  brightBlue: [94, 39],
-  brightMagenta: [95, 39],
-  brightCyan: [96, 39],
-  brightWhite: [97, 39],
-
-  bgBlack: [40, 49],
-  bgRed: [41, 49],
-  bgGreen: [42, 49],
-  bgYellow: [43, 49],
-  bgBlue: [44, 49],
-  bgMagenta: [45, 49],
-  bgCyan: [46, 49],
-  bgWhite: [47, 49],
-  bgGray: [100, 49],
-  bgGrey: [100, 49],
-
-  bgBrightRed: [101, 49],
-  bgBrightGreen: [102, 49],
-  bgBrightYellow: [103, 49],
-  bgBrightBlue: [104, 49],
-  bgBrightMagenta: [105, 49],
-  bgBrightCyan: [106, 49],
-  bgBrightWhite: [107, 49],
-
-  // legacy styles for colors pre v1.0.0
-  blackBG: [40, 49],
-  redBG: [41, 49],
-  greenBG: [42, 49],
-  yellowBG: [43, 49],
-  blueBG: [44, 49],
-  magentaBG: [45, 49],
-  cyanBG: [46, 49],
-  whiteBG: [47, 49],
-
-};
-
-Object.keys(codes).forEach(function(key) {
-  var val = codes[key];
-  var style = styles[key] = [];
-  style.open = '\u001b[' + val[0] + 'm';
-  style.close = '\u001b[' + val[1] + 'm';
-});
-
-
-/***/ }),
+/* 117 */,
 /* 118 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -3549,7 +3689,142 @@ module.exports = uniq;
 module.exports = require("child_process");
 
 /***/ }),
-/* 130 */,
+/* 130 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const fs = __importStar(__webpack_require__(747));
+const internal_utils_1 = __webpack_require__(931);
+const url_1 = __webpack_require__(835);
+const internal_config_variables_1 = __webpack_require__(717);
+const core_1 = __webpack_require__(943);
+/**
+ * Gets a list of all artifacts that are in a specific container
+ */
+function listArtifacts() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const artifactUrl = internal_utils_1.getArtifactUrl();
+        const client = internal_utils_1.createHttpClient();
+        const requestOptions = internal_utils_1.getRequestOptions('application/json');
+        const rawResponse = yield client.get(artifactUrl, requestOptions);
+        const body = yield rawResponse.readBody();
+        if (internal_utils_1.isSuccessStatusCode(rawResponse.message.statusCode) && body) {
+            return JSON.parse(body);
+        }
+        // eslint-disable-next-line no-console
+        console.log(rawResponse);
+        throw new Error(`Unable to list artifacts for the run`);
+    });
+}
+exports.listArtifacts = listArtifacts;
+/**
+ * Fetches a set of container items that describe the contents of an artifact
+ * @param artifactName the name of the artifact
+ * @param containerUrl the artifact container URL for the run
+ */
+function getContainerItems(artifactName, containerUrl) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // The itemPath search parameter controls which containers will be returned
+        const resourceUrl = new url_1.URL(containerUrl);
+        resourceUrl.searchParams.append('itemPath', artifactName);
+        const client = internal_utils_1.createHttpClient();
+        const rawResponse = yield client.get(resourceUrl.toString());
+        const body = yield rawResponse.readBody();
+        if (internal_utils_1.isSuccessStatusCode(rawResponse.message.statusCode) && body) {
+            return JSON.parse(body);
+        }
+        // eslint-disable-next-line no-console
+        console.log(rawResponse);
+        throw new Error(`Unable to get ContainersItems from ${resourceUrl}`);
+    });
+}
+exports.getContainerItems = getContainerItems;
+/**
+ * Concurrently downloads all the files that are part of an artifact
+ * @param downloadItems information about what items to download and where to save them
+ */
+function downloadSingleArtifact(downloadItems) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const DOWNLOAD_CONCURRENCY = internal_config_variables_1.getDownloadFileConcurrency();
+        // Limit the number of files downloaded at a single time
+        const parallelDownloads = [...new Array(DOWNLOAD_CONCURRENCY).keys()];
+        const client = internal_utils_1.createHttpClient();
+        let downloadedFiles = 0;
+        yield Promise.all(parallelDownloads.map(() => __awaiter(this, void 0, void 0, function* () {
+            while (downloadedFiles < downloadItems.length) {
+                const currentFileToDownload = downloadItems[downloadedFiles];
+                downloadedFiles += 1;
+                yield downloadIndividualFile(client, currentFileToDownload.sourceLocation, currentFileToDownload.targetPath);
+            }
+        })));
+    });
+}
+exports.downloadSingleArtifact = downloadSingleArtifact;
+/**
+ * Downloads an individual file
+ * @param client http client that will be used to make the necessary calls
+ * @param artifactLocation origin location where a file will be downloaded from
+ * @param downloadPath destination location for the file being downloaded
+ */
+function downloadIndividualFile(client, artifactLocation, downloadPath) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const stream = fs.createWriteStream(downloadPath);
+        const response = yield client.get(artifactLocation);
+        if (internal_utils_1.isSuccessStatusCode(response.message.statusCode)) {
+            yield pipeResponseToStream(response, stream);
+        }
+        else if (internal_utils_1.isRetryableStatusCode(response.message.statusCode)) {
+            core_1.warning(`Received http ${response.message.statusCode} during file download, will retry ${artifactLocation} after 10 seconds`);
+            yield new Promise(resolve => setTimeout(resolve, 10000));
+            const retryResponse = yield client.get(artifactLocation);
+            if (internal_utils_1.isSuccessStatusCode(retryResponse.message.statusCode)) {
+                yield pipeResponseToStream(response, stream);
+            }
+            else {
+                // eslint-disable-next-line no-console
+                console.log(retryResponse);
+                throw new Error(`Unable to download ${artifactLocation}`);
+            }
+        }
+        else {
+            // eslint-disable-next-line no-console
+            console.log(response);
+            throw new Error(`Unable to download ${artifactLocation}`);
+        }
+    });
+}
+exports.downloadIndividualFile = downloadIndividualFile;
+function pipeResponseToStream(response, stream) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise(resolve => {
+            response.message.pipe(stream).on('close', () => {
+                resolve();
+            });
+        });
+    });
+}
+exports.pipeResponseToStream = pipeResponseToStream;
+//# sourceMappingURL=internal-download-http-client.js.map
+
+/***/ }),
 /* 131 */,
 /* 132 */,
 /* 133 */,
@@ -3818,7 +4093,277 @@ module.exports = function nodeRNG() {
 
 /***/ }),
 /* 140 */,
-/* 141 */,
+/* 141 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+
+var net = __webpack_require__(631);
+var tls = __webpack_require__(16);
+var http = __webpack_require__(605);
+var https = __webpack_require__(211);
+var events = __webpack_require__(614);
+var assert = __webpack_require__(357);
+var util = __webpack_require__(669);
+
+
+exports.httpOverHttp = httpOverHttp;
+exports.httpsOverHttp = httpsOverHttp;
+exports.httpOverHttps = httpOverHttps;
+exports.httpsOverHttps = httpsOverHttps;
+
+
+function httpOverHttp(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = http.request;
+  return agent;
+}
+
+function httpsOverHttp(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = http.request;
+  agent.createSocket = createSecureSocket;
+  agent.defaultPort = 443;
+  return agent;
+}
+
+function httpOverHttps(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = https.request;
+  return agent;
+}
+
+function httpsOverHttps(options) {
+  var agent = new TunnelingAgent(options);
+  agent.request = https.request;
+  agent.createSocket = createSecureSocket;
+  agent.defaultPort = 443;
+  return agent;
+}
+
+
+function TunnelingAgent(options) {
+  var self = this;
+  self.options = options || {};
+  self.proxyOptions = self.options.proxy || {};
+  self.maxSockets = self.options.maxSockets || http.Agent.defaultMaxSockets;
+  self.requests = [];
+  self.sockets = [];
+
+  self.on('free', function onFree(socket, host, port, localAddress) {
+    var options = toOptions(host, port, localAddress);
+    for (var i = 0, len = self.requests.length; i < len; ++i) {
+      var pending = self.requests[i];
+      if (pending.host === options.host && pending.port === options.port) {
+        // Detect the request to connect same origin server,
+        // reuse the connection.
+        self.requests.splice(i, 1);
+        pending.request.onSocket(socket);
+        return;
+      }
+    }
+    socket.destroy();
+    self.removeSocket(socket);
+  });
+}
+util.inherits(TunnelingAgent, events.EventEmitter);
+
+TunnelingAgent.prototype.addRequest = function addRequest(req, host, port, localAddress) {
+  var self = this;
+  var options = mergeOptions({request: req}, self.options, toOptions(host, port, localAddress));
+
+  if (self.sockets.length >= this.maxSockets) {
+    // We are over limit so we'll add it to the queue.
+    self.requests.push(options);
+    return;
+  }
+
+  // If we are under maxSockets create a new one.
+  self.createSocket(options, function(socket) {
+    socket.on('free', onFree);
+    socket.on('close', onCloseOrRemove);
+    socket.on('agentRemove', onCloseOrRemove);
+    req.onSocket(socket);
+
+    function onFree() {
+      self.emit('free', socket, options);
+    }
+
+    function onCloseOrRemove(err) {
+      self.removeSocket(socket);
+      socket.removeListener('free', onFree);
+      socket.removeListener('close', onCloseOrRemove);
+      socket.removeListener('agentRemove', onCloseOrRemove);
+    }
+  });
+};
+
+TunnelingAgent.prototype.createSocket = function createSocket(options, cb) {
+  var self = this;
+  var placeholder = {};
+  self.sockets.push(placeholder);
+
+  var connectOptions = mergeOptions({}, self.proxyOptions, {
+    method: 'CONNECT',
+    path: options.host + ':' + options.port,
+    agent: false,
+    headers: {
+      host: options.host + ':' + options.port
+    }
+  });
+  if (options.localAddress) {
+    connectOptions.localAddress = options.localAddress;
+  }
+  if (connectOptions.proxyAuth) {
+    connectOptions.headers = connectOptions.headers || {};
+    connectOptions.headers['Proxy-Authorization'] = 'Basic ' +
+        new Buffer(connectOptions.proxyAuth).toString('base64');
+  }
+
+  debug('making CONNECT request');
+  var connectReq = self.request(connectOptions);
+  connectReq.useChunkedEncodingByDefault = false; // for v0.6
+  connectReq.once('response', onResponse); // for v0.6
+  connectReq.once('upgrade', onUpgrade);   // for v0.6
+  connectReq.once('connect', onConnect);   // for v0.7 or later
+  connectReq.once('error', onError);
+  connectReq.end();
+
+  function onResponse(res) {
+    // Very hacky. This is necessary to avoid http-parser leaks.
+    res.upgrade = true;
+  }
+
+  function onUpgrade(res, socket, head) {
+    // Hacky.
+    process.nextTick(function() {
+      onConnect(res, socket, head);
+    });
+  }
+
+  function onConnect(res, socket, head) {
+    connectReq.removeAllListeners();
+    socket.removeAllListeners();
+
+    if (res.statusCode !== 200) {
+      debug('tunneling socket could not be established, statusCode=%d',
+        res.statusCode);
+      socket.destroy();
+      var error = new Error('tunneling socket could not be established, ' +
+        'statusCode=' + res.statusCode);
+      error.code = 'ECONNRESET';
+      options.request.emit('error', error);
+      self.removeSocket(placeholder);
+      return;
+    }
+    if (head.length > 0) {
+      debug('got illegal response body from proxy');
+      socket.destroy();
+      var error = new Error('got illegal response body from proxy');
+      error.code = 'ECONNRESET';
+      options.request.emit('error', error);
+      self.removeSocket(placeholder);
+      return;
+    }
+    debug('tunneling connection has established');
+    self.sockets[self.sockets.indexOf(placeholder)] = socket;
+    return cb(socket);
+  }
+
+  function onError(cause) {
+    connectReq.removeAllListeners();
+
+    debug('tunneling socket could not be established, cause=%s\n',
+          cause.message, cause.stack);
+    var error = new Error('tunneling socket could not be established, ' +
+                          'cause=' + cause.message);
+    error.code = 'ECONNRESET';
+    options.request.emit('error', error);
+    self.removeSocket(placeholder);
+  }
+};
+
+TunnelingAgent.prototype.removeSocket = function removeSocket(socket) {
+  var pos = this.sockets.indexOf(socket)
+  if (pos === -1) {
+    return;
+  }
+  this.sockets.splice(pos, 1);
+
+  var pending = this.requests.shift();
+  if (pending) {
+    // If we have pending requests and a socket gets closed a new one
+    // needs to be created to take over in the pool for the one that closed.
+    this.createSocket(pending, function(socket) {
+      pending.request.onSocket(socket);
+    });
+  }
+};
+
+function createSecureSocket(options, cb) {
+  var self = this;
+  TunnelingAgent.prototype.createSocket.call(self, options, function(socket) {
+    var hostHeader = options.request.getHeader('host');
+    var tlsOptions = mergeOptions({}, self.options, {
+      socket: socket,
+      servername: hostHeader ? hostHeader.replace(/:.*$/, '') : options.host
+    });
+
+    // 0 is dummy port for v0.6
+    var secureSocket = tls.connect(0, tlsOptions);
+    self.sockets[self.sockets.indexOf(socket)] = secureSocket;
+    cb(secureSocket);
+  });
+}
+
+
+function toOptions(host, port, localAddress) {
+  if (typeof host === 'string') { // since v0.10
+    return {
+      host: host,
+      port: port,
+      localAddress: localAddress
+    };
+  }
+  return host; // for v0.11 or later
+}
+
+function mergeOptions(target) {
+  for (var i = 1, len = arguments.length; i < len; ++i) {
+    var overrides = arguments[i];
+    if (typeof overrides === 'object') {
+      var keys = Object.keys(overrides);
+      for (var j = 0, keyLen = keys.length; j < keyLen; ++j) {
+        var k = keys[j];
+        if (overrides[k] !== undefined) {
+          target[k] = overrides[k];
+        }
+      }
+    }
+  }
+  return target;
+}
+
+
+var debug;
+if (process.env.NODE_DEBUG && /\btunnel\b/.test(process.env.NODE_DEBUG)) {
+  debug = function() {
+    var args = Array.prototype.slice.call(arguments);
+    if (typeof args[0] === 'string') {
+      args[0] = 'TUNNEL: ' + args[0];
+    } else {
+      args.unshift('TUNNEL:');
+    }
+    console.error.apply(console, args);
+  }
+} else {
+  debug = function() {};
+}
+exports.debug = debug; // for test
+
+
+/***/ }),
 /* 142 */,
 /* 143 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -4447,7 +4992,65 @@ module.exports = require("querystring");
 /* 192 */,
 /* 193 */,
 /* 194 */,
-/* 195 */,
+/* 195 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const path = __importStar(__webpack_require__(622));
+/**
+ * Creates a specification for a set of files that will be downloaded
+ * @param artifactName the name of the artifact
+ * @param artifactEntries a set of container entries that describe that files that make up an artifact
+ * @param downloadPath the path where the artifact will be downloaded to
+ * @param includeRootDirectory specifies if there should be an extra directory (denoted by the artifact name) where the artifact files should be downloaded to
+ */
+function getDownloadSpecification(artifactName, artifactEntries, downloadPath, includeRootDirectory) {
+    const directories = new Set();
+    const specifications = {
+        rootDownloadLocation: includeRootDirectory
+            ? path.join(downloadPath, artifactName)
+            : downloadPath,
+        directoryStructure: [],
+        filesToDownload: []
+    };
+    for (const entry of artifactEntries) {
+        // Ignore artifacts in the container that don't begin with the same name
+        if (entry.path.startsWith(`${artifactName}/`) ||
+            entry.path.startsWith(`${artifactName}\\`)) {
+            // normalize all separators to the local OS
+            const normalizedPathEntry = path.normalize(entry.path);
+            // entry.path always starts with the artifact name, if includeRootDirectory is false, remove the name from the beginning of the path
+            const filePath = path.join(downloadPath, includeRootDirectory
+                ? normalizedPathEntry
+                : normalizedPathEntry.replace(artifactName, ''));
+            // Case insensitive folder structure maintained in the backend, not every folder is created so the 'folder'
+            // itemType cannot be relied upon. The file must be used to determine the directory structure
+            if (entry.itemType === 'file') {
+                // Get the directories that we need to create from the filePath for each individual file
+                directories.add(path.dirname(filePath));
+                specifications.filesToDownload.push({
+                    sourceLocation: entry.contentLocation,
+                    targetPath: filePath
+                });
+            }
+        }
+    }
+    specifications.directoryStructure = Array.from(directories);
+    return specifications;
+}
+exports.getDownloadSpecification = getDownloadSpecification;
+//# sourceMappingURL=internal-download-specification.js.map
+
+/***/ }),
 /* 196 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -6932,7 +7535,23 @@ module.exports = require("https");
 module.exports = require("punycode");
 
 /***/ }),
-/* 214 */,
+/* 214 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const internal_artifact_client_1 = __webpack_require__(369);
+/**
+ * Constructs an ArtifactClient
+ */
+function create() {
+    return internal_artifact_client_1.DefaultArtifactClient.create();
+}
+exports.create = create;
+//# sourceMappingURL=artifact-client.js.map
+
+/***/ }),
 /* 215 */
 /***/ (function(module) {
 
@@ -6991,9 +7610,65 @@ module.exports = {"$id":"browser.json#","$schema":"http://json-schema.org/draft-
 /* 224 */,
 /* 225 */,
 /* 226 */
-/***/ (function(module) {
+/***/ (function(__unusedmodule, exports) {
 
-module.exports = {"$id":"response.json#","$schema":"http://json-schema.org/draft-06/schema#","type":"object","required":["status","statusText","httpVersion","cookies","headers","content","redirectURL","headersSize","bodySize"],"properties":{"status":{"type":"integer"},"statusText":{"type":"string"},"httpVersion":{"type":"string"},"cookies":{"type":"array","items":{"$ref":"cookie.json#"}},"headers":{"type":"array","items":{"$ref":"header.json#"}},"content":{"$ref":"content.json#"},"redirectURL":{"type":"string"},"headersSize":{"type":"integer"},"bodySize":{"type":"integer"},"comment":{"type":"string"}}};
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+class BasicCredentialHandler {
+    constructor(username, password) {
+        this.username = username;
+        this.password = password;
+    }
+    prepareRequest(options) {
+        options.headers['Authorization'] = 'Basic ' + Buffer.from(this.username + ':' + this.password).toString('base64');
+    }
+    // This handler cannot handle 401
+    canHandleAuthentication(response) {
+        return false;
+    }
+    handleAuthentication(httpClient, requestInfo, objs) {
+        return null;
+    }
+}
+exports.BasicCredentialHandler = BasicCredentialHandler;
+class BearerCredentialHandler {
+    constructor(token) {
+        this.token = token;
+    }
+    // currently implements pre-authorization
+    // TODO: support preAuth = false where it hooks on 401
+    prepareRequest(options) {
+        options.headers['Authorization'] = 'Bearer ' + this.token;
+    }
+    // This handler cannot handle 401
+    canHandleAuthentication(response) {
+        return false;
+    }
+    handleAuthentication(httpClient, requestInfo, objs) {
+        return null;
+    }
+}
+exports.BearerCredentialHandler = BearerCredentialHandler;
+class PersonalAccessTokenCredentialHandler {
+    constructor(token) {
+        this.token = token;
+    }
+    // currently implements pre-authorization
+    // TODO: support preAuth = false where it hooks on 401
+    prepareRequest(options) {
+        options.headers['Authorization'] = 'Basic ' + Buffer.from('PAT:' + this.token).toString('base64');
+    }
+    // This handler cannot handle 401
+    canHandleAuthentication(response) {
+        return false;
+    }
+    handleAuthentication(httpClient, requestInfo, objs) {
+        return null;
+    }
+}
+exports.PersonalAccessTokenCredentialHandler = PersonalAccessTokenCredentialHandler;
+
 
 /***/ }),
 /* 227 */,
@@ -10363,58 +11038,7 @@ exports.debug = debug // for test
 
 /***/ }),
 /* 244 */,
-/* 245 */
-/***/ (function(module) {
-
-module.exports = function runTheTrap(text, options) {
-  var result = '';
-  text = text || 'Run the trap, drop the bass';
-  text = text.split('');
-  var trap = {
-    a: ['\u0040', '\u0104', '\u023a', '\u0245', '\u0394', '\u039b', '\u0414'],
-    b: ['\u00df', '\u0181', '\u0243', '\u026e', '\u03b2', '\u0e3f'],
-    c: ['\u00a9', '\u023b', '\u03fe'],
-    d: ['\u00d0', '\u018a', '\u0500', '\u0501', '\u0502', '\u0503'],
-    e: ['\u00cb', '\u0115', '\u018e', '\u0258', '\u03a3', '\u03be', '\u04bc',
-      '\u0a6c'],
-    f: ['\u04fa'],
-    g: ['\u0262'],
-    h: ['\u0126', '\u0195', '\u04a2', '\u04ba', '\u04c7', '\u050a'],
-    i: ['\u0f0f'],
-    j: ['\u0134'],
-    k: ['\u0138', '\u04a0', '\u04c3', '\u051e'],
-    l: ['\u0139'],
-    m: ['\u028d', '\u04cd', '\u04ce', '\u0520', '\u0521', '\u0d69'],
-    n: ['\u00d1', '\u014b', '\u019d', '\u0376', '\u03a0', '\u048a'],
-    o: ['\u00d8', '\u00f5', '\u00f8', '\u01fe', '\u0298', '\u047a', '\u05dd',
-      '\u06dd', '\u0e4f'],
-    p: ['\u01f7', '\u048e'],
-    q: ['\u09cd'],
-    r: ['\u00ae', '\u01a6', '\u0210', '\u024c', '\u0280', '\u042f'],
-    s: ['\u00a7', '\u03de', '\u03df', '\u03e8'],
-    t: ['\u0141', '\u0166', '\u0373'],
-    u: ['\u01b1', '\u054d'],
-    v: ['\u05d8'],
-    w: ['\u0428', '\u0460', '\u047c', '\u0d70'],
-    x: ['\u04b2', '\u04fe', '\u04fc', '\u04fd'],
-    y: ['\u00a5', '\u04b0', '\u04cb'],
-    z: ['\u01b5', '\u0240'],
-  };
-  text.forEach(function(c) {
-    c = c.toLowerCase();
-    var chars = trap[c] || [' '];
-    var rand = Math.floor(Math.random() * chars.length);
-    if (typeof trap[c] !== 'undefined') {
-      result += trap[c][rand];
-    } else {
-      result += c;
-    }
-  });
-  return result;
-};
-
-
-/***/ }),
+/* 245 */,
 /* 246 */,
 /* 247 */,
 /* 248 */
@@ -10595,7 +11219,7 @@ module.exports.httpify = function (resp, headers) {
         XMLDeclaration = __webpack_require__(738);
         XMLDocType = __webpack_require__(735);
         XMLRaw = __webpack_require__(660);
-        XMLText = __webpack_require__(708);
+        XMLText = __webpack_require__(988);
         XMLProcessingInstruction = __webpack_require__(491);
         XMLDummy = __webpack_require__(216);
         NodeType = __webpack_require__(683);
@@ -17176,7 +17800,161 @@ module.exports = function atob(str) {
 
 
 /***/ }),
-/* 369 */,
+/* 369 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core = __importStar(__webpack_require__(943));
+const internal_upload_specification_1 = __webpack_require__(82);
+const internal_upload_http_client_1 = __webpack_require__(715);
+const internal_utils_1 = __webpack_require__(931);
+const internal_download_http_client_1 = __webpack_require__(130);
+const internal_download_specification_1 = __webpack_require__(195);
+const internal_config_variables_1 = __webpack_require__(717);
+const path_1 = __webpack_require__(622);
+class DefaultArtifactClient {
+    /**
+     * Constructs a DefaultArtifactClient
+     */
+    static create() {
+        return new DefaultArtifactClient();
+    }
+    /**
+     * Uploads an artifact
+     */
+    uploadArtifact(name, files, rootDirectory, options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            internal_utils_1.checkArtifactName(name);
+            // Get specification for the files being uploaded
+            const uploadSpecification = internal_upload_specification_1.getUploadSpecification(name, rootDirectory, files);
+            const uploadResponse = {
+                artifactName: name,
+                artifactItems: [],
+                size: 0,
+                failedItems: []
+            };
+            if (uploadSpecification.length === 0) {
+                core.warning(`No files found that can be uploaded`);
+            }
+            else {
+                // Create an entry for the artifact in the file container
+                const response = yield internal_upload_http_client_1.createArtifactInFileContainer(name);
+                if (!response.fileContainerResourceUrl) {
+                    core.debug(response.toString());
+                    throw new Error('No URL provided by the Artifact Service to upload an artifact to');
+                }
+                core.debug(`Upload Resource URL: ${response.fileContainerResourceUrl}`);
+                // Upload each of the files that were found concurrently
+                const uploadResult = yield internal_upload_http_client_1.uploadArtifactToFileContainer(response.fileContainerResourceUrl, uploadSpecification, options);
+                //Update the size of the artifact to indicate we are done uploading
+                yield internal_upload_http_client_1.patchArtifactSize(uploadResult.size, name);
+                core.info(`Finished uploading artifact ${name}. Reported size is ${uploadResult.size} bytes. There were ${uploadResult.failedItems.length} items that failed to upload`);
+                uploadResponse.artifactItems = uploadSpecification.map(item => item.absoluteFilePath);
+                uploadResponse.size = uploadResult.size;
+                uploadResponse.failedItems = uploadResult.failedItems;
+            }
+            return uploadResponse;
+        });
+    }
+    downloadArtifact(name, path, options) {
+        var _a;
+        return __awaiter(this, void 0, void 0, function* () {
+            const artifacts = yield internal_download_http_client_1.listArtifacts();
+            if (artifacts.count === 0) {
+                throw new Error(`Unable to find any artifacts for the associated workflow`);
+            }
+            const artifactToDownload = artifacts.value.find(artifact => {
+                return artifact.name === name;
+            });
+            if (!artifactToDownload) {
+                throw new Error(`Unable to find an artifact with the name: ${name}`);
+            }
+            const items = yield internal_download_http_client_1.getContainerItems(artifactToDownload.name, artifactToDownload.fileContainerResourceUrl);
+            if (!path) {
+                path = internal_config_variables_1.getWorkSpaceDirectory();
+            }
+            path = path_1.normalize(path);
+            path = path_1.resolve(path);
+            // During upload, empty directories are rejected by the remote server so there should be no artifacts that consist of only empty directories
+            const downloadSpecification = internal_download_specification_1.getDownloadSpecification(name, items.value, path, ((_a = options) === null || _a === void 0 ? void 0 : _a.createArtifactFolder) || false);
+            if (downloadSpecification.filesToDownload.length === 0) {
+                core.info(`No downloadable files were found for the artifact: ${artifactToDownload.name}`);
+            }
+            else {
+                // Create all necessary directories recursively before starting any download
+                yield internal_utils_1.createDirectoriesForArtifact(downloadSpecification.directoryStructure);
+                yield internal_download_http_client_1.downloadSingleArtifact(downloadSpecification.filesToDownload);
+            }
+            return {
+                artifactName: name,
+                downloadPath: downloadSpecification.rootDownloadLocation
+            };
+        });
+    }
+    downloadAllArtifacts(path) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = [];
+            const artifacts = yield internal_download_http_client_1.listArtifacts();
+            if (artifacts.count === 0) {
+                core.info('Unable to find any artifacts for the associated workflow');
+                return response;
+            }
+            if (!path) {
+                path = internal_config_variables_1.getWorkSpaceDirectory();
+            }
+            path = path_1.normalize(path);
+            path = path_1.resolve(path);
+            const ARTIFACT_CONCURRENCY = internal_config_variables_1.getDownloadArtifactConcurrency();
+            const parallelDownloads = [...new Array(ARTIFACT_CONCURRENCY).keys()];
+            let downloadedArtifacts = 0;
+            yield Promise.all(parallelDownloads.map(() => __awaiter(this, void 0, void 0, function* () {
+                while (downloadedArtifacts < artifacts.count) {
+                    const currentArtifactToDownload = artifacts.value[downloadedArtifacts];
+                    downloadedArtifacts += 1;
+                    // Get container entries for the specific artifact
+                    const items = yield internal_download_http_client_1.getContainerItems(currentArtifactToDownload.name, currentArtifactToDownload.fileContainerResourceUrl);
+                    // Promise.All is not correctly inferring that 'path' is no longer possibly undefined: https://github.com/microsoft/TypeScript/issues/34925
+                    const downloadSpecification = internal_download_specification_1.getDownloadSpecification(currentArtifactToDownload.name, items.value, path, // eslint-disable-line @typescript-eslint/no-non-null-assertion
+                    true);
+                    if (downloadSpecification.filesToDownload.length === 0) {
+                        core.info(`No downloadable files were found for any artifact ${currentArtifactToDownload.name}`);
+                    }
+                    else {
+                        yield internal_utils_1.createDirectoriesForArtifact(downloadSpecification.directoryStructure);
+                        yield internal_download_http_client_1.downloadSingleArtifact(downloadSpecification.filesToDownload);
+                    }
+                    response.push({
+                        artifactName: currentArtifactToDownload.name,
+                        downloadPath: downloadSpecification.rootDownloadLocation
+                    });
+                }
+            })));
+            return response;
+        });
+    }
+}
+exports.DefaultArtifactClient = DefaultArtifactClient;
+//# sourceMappingURL=internal-artifact-client.js.map
+
+/***/ }),
 /* 370 */
 /***/ (function(module) {
 
@@ -18889,7 +19667,7 @@ module.exports = require("crypto");
 
   XMLRaw = __webpack_require__(660);
 
-  XMLText = __webpack_require__(708);
+  XMLText = __webpack_require__(988);
 
   XMLProcessingInstruction = __webpack_require__(491);
 
@@ -24095,223 +24873,7 @@ exports.RequestError = RequestError;
 
 
 /***/ }),
-/* 464 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-/*
-
-The MIT License (MIT)
-
-Original Library
-  - Copyright (c) Marak Squires
-
-Additional functionality
- - Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-var colors = {};
-module.exports = colors;
-
-colors.themes = {};
-
-var util = __webpack_require__(669);
-var ansiStyles = colors.styles = __webpack_require__(117);
-var defineProps = Object.defineProperties;
-var newLineRegex = new RegExp(/[\r\n]+/g);
-
-colors.supportsColor = __webpack_require__(480).supportsColor;
-
-if (typeof colors.enabled === 'undefined') {
-  colors.enabled = colors.supportsColor() !== false;
-}
-
-colors.enable = function() {
-  colors.enabled = true;
-};
-
-colors.disable = function() {
-  colors.enabled = false;
-};
-
-colors.stripColors = colors.strip = function(str) {
-  return ('' + str).replace(/\x1B\[\d+m/g, '');
-};
-
-// eslint-disable-next-line no-unused-vars
-var stylize = colors.stylize = function stylize(str, style) {
-  if (!colors.enabled) {
-    return str+'';
-  }
-
-  var styleMap = ansiStyles[style];
-
-  // Stylize should work for non-ANSI styles, too
-  if(!styleMap && style in colors){
-    // Style maps like trap operate as functions on strings;
-    // they don't have properties like open or close.
-    return colors[style](str);
-  }
-
-  return styleMap.open + str + styleMap.close;
-};
-
-var matchOperatorsRe = /[|\\{}()[\]^$+*?.]/g;
-var escapeStringRegexp = function(str) {
-  if (typeof str !== 'string') {
-    throw new TypeError('Expected a string');
-  }
-  return str.replace(matchOperatorsRe, '\\$&');
-};
-
-function build(_styles) {
-  var builder = function builder() {
-    return applyStyle.apply(builder, arguments);
-  };
-  builder._styles = _styles;
-  // __proto__ is used because we must return a function, but there is
-  // no way to create a function with a different prototype.
-  builder.__proto__ = proto;
-  return builder;
-}
-
-var styles = (function() {
-  var ret = {};
-  ansiStyles.grey = ansiStyles.gray;
-  Object.keys(ansiStyles).forEach(function(key) {
-    ansiStyles[key].closeRe =
-      new RegExp(escapeStringRegexp(ansiStyles[key].close), 'g');
-    ret[key] = {
-      get: function() {
-        return build(this._styles.concat(key));
-      },
-    };
-  });
-  return ret;
-})();
-
-var proto = defineProps(function colors() {}, styles);
-
-function applyStyle() {
-  var args = Array.prototype.slice.call(arguments);
-
-  var str = args.map(function(arg) {
-    // Use weak equality check so we can colorize null/undefined in safe mode
-    if (arg != null && arg.constructor === String) {
-      return arg;
-    } else {
-      return util.inspect(arg);
-    }
-  }).join(' ');
-
-  if (!colors.enabled || !str) {
-    return str;
-  }
-
-  var newLinesPresent = str.indexOf('\n') != -1;
-
-  var nestedStyles = this._styles;
-
-  var i = nestedStyles.length;
-  while (i--) {
-    var code = ansiStyles[nestedStyles[i]];
-    str = code.open + str.replace(code.closeRe, code.open) + code.close;
-    if (newLinesPresent) {
-      str = str.replace(newLineRegex, function(match) {
-        return code.close + match + code.open;
-      });
-    }
-  }
-
-  return str;
-}
-
-colors.setTheme = function(theme) {
-  if (typeof theme === 'string') {
-    console.log('colors.setTheme now only accepts an object, not a string.  ' +
-      'If you are trying to set a theme from a file, it is now your (the ' +
-      'caller\'s) responsibility to require the file.  The old syntax ' +
-      'looked like colors.setTheme(__dirname + ' +
-      '\'/../themes/generic-logging.js\'); The new syntax looks like '+
-      'colors.setTheme(require(__dirname + ' +
-      '\'/../themes/generic-logging.js\'));');
-    return;
-  }
-  for (var style in theme) {
-    (function(style) {
-      colors[style] = function(str) {
-        if (typeof theme[style] === 'object') {
-          var out = str;
-          for (var i in theme[style]) {
-            out = colors[theme[style][i]](out);
-          }
-          return out;
-        }
-        return colors[theme[style]](str);
-      };
-    })(style);
-  }
-};
-
-function init() {
-  var ret = {};
-  Object.keys(styles).forEach(function(name) {
-    ret[name] = {
-      get: function() {
-        return build([name]);
-      },
-    };
-  });
-  return ret;
-}
-
-var sequencer = function sequencer(map, str) {
-  var exploded = str.split('');
-  exploded = exploded.map(map);
-  return exploded.join('');
-};
-
-// custom formatter methods
-colors.trap = __webpack_require__(245);
-colors.zalgo = __webpack_require__(640);
-
-// maps
-colors.maps = {};
-colors.maps.america = __webpack_require__(842)(colors);
-colors.maps.zebra = __webpack_require__(732)(colors);
-colors.maps.rainbow = __webpack_require__(56)(colors);
-colors.maps.random = __webpack_require__(961)(colors);
-
-for (var map in colors.maps) {
-  (function(map) {
-    colors[map] = function(str) {
-      return sequencer(colors.maps[map], str);
-    };
-  })(map);
-}
-
-defineProps(colors, init());
-
-
-/***/ }),
+/* 464 */,
 /* 465 */,
 /* 466 */,
 /* 467 */
@@ -24667,7 +25229,7 @@ function authenticationBeforeRequest(state, options) {
 
   XMLRaw = __webpack_require__(660);
 
-  XMLText = __webpack_require__(708);
+  XMLText = __webpack_require__(988);
 
   XMLProcessingInstruction = __webpack_require__(491);
 
@@ -25448,164 +26010,7 @@ module.exports = function generate_if(it, $keyword, $ruleType) {
 
 
 /***/ }),
-/* 480 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
-
-"use strict";
-/*
-The MIT License (MIT)
-
-Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
-
-*/
-
-
-
-var os = __webpack_require__(87);
-var hasFlag = __webpack_require__(115);
-
-var env = process.env;
-
-var forceColor = void 0;
-if (hasFlag('no-color') || hasFlag('no-colors') || hasFlag('color=false')) {
-  forceColor = false;
-} else if (hasFlag('color') || hasFlag('colors') || hasFlag('color=true')
-           || hasFlag('color=always')) {
-  forceColor = true;
-}
-if ('FORCE_COLOR' in env) {
-  forceColor = env.FORCE_COLOR.length === 0
-    || parseInt(env.FORCE_COLOR, 10) !== 0;
-}
-
-function translateLevel(level) {
-  if (level === 0) {
-    return false;
-  }
-
-  return {
-    level: level,
-    hasBasic: true,
-    has256: level >= 2,
-    has16m: level >= 3,
-  };
-}
-
-function supportsColor(stream) {
-  if (forceColor === false) {
-    return 0;
-  }
-
-  if (hasFlag('color=16m') || hasFlag('color=full')
-      || hasFlag('color=truecolor')) {
-    return 3;
-  }
-
-  if (hasFlag('color=256')) {
-    return 2;
-  }
-
-  if (stream && !stream.isTTY && forceColor !== true) {
-    return 0;
-  }
-
-  var min = forceColor ? 1 : 0;
-
-  if (process.platform === 'win32') {
-    // Node.js 7.5.0 is the first version of Node.js to include a patch to
-    // libuv that enables 256 color output on Windows. Anything earlier and it
-    // won't work. However, here we target Node.js 8 at minimum as it is an LTS
-    // release, and Node.js 7 is not. Windows 10 build 10586 is the first
-    // Windows release that supports 256 colors. Windows 10 build 14931 is the
-    // first release that supports 16m/TrueColor.
-    var osRelease = os.release().split('.');
-    if (Number(process.versions.node.split('.')[0]) >= 8
-        && Number(osRelease[0]) >= 10 && Number(osRelease[2]) >= 10586) {
-      return Number(osRelease[2]) >= 14931 ? 3 : 2;
-    }
-
-    return 1;
-  }
-
-  if ('CI' in env) {
-    if (['TRAVIS', 'CIRCLECI', 'APPVEYOR', 'GITLAB_CI'].some(function(sign) {
-      return sign in env;
-    }) || env.CI_NAME === 'codeship') {
-      return 1;
-    }
-
-    return min;
-  }
-
-  if ('TEAMCITY_VERSION' in env) {
-    return (/^(9\.(0*[1-9]\d*)\.|\d{2,}\.)/.test(env.TEAMCITY_VERSION) ? 1 : 0
-    );
-  }
-
-  if ('TERM_PROGRAM' in env) {
-    var version = parseInt((env.TERM_PROGRAM_VERSION || '').split('.')[0], 10);
-
-    switch (env.TERM_PROGRAM) {
-      case 'iTerm.app':
-        return version >= 3 ? 3 : 2;
-      case 'Hyper':
-        return 3;
-      case 'Apple_Terminal':
-        return 2;
-      // No default
-    }
-  }
-
-  if (/-256(color)?$/i.test(env.TERM)) {
-    return 2;
-  }
-
-  if (/^screen|^xterm|^vt100|^rxvt|color|ansi|cygwin|linux/i.test(env.TERM)) {
-    return 1;
-  }
-
-  if ('COLORTERM' in env) {
-    return 1;
-  }
-
-  if (env.TERM === 'dumb') {
-    return min;
-  }
-
-  return min;
-}
-
-function getSupportLevel(stream) {
-  var level = supportsColor(stream);
-  return translateLevel(level);
-}
-
-module.exports = {
-  supportsColor: getSupportLevel,
-  stdout: getSupportLevel(process.stdout),
-  stderr: getSupportLevel(process.stderr),
-};
-
-
-/***/ }),
+/* 480 */,
 /* 481 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -27475,7 +27880,513 @@ function write(key, options) {
 
 
 /***/ }),
-/* 539 */,
+/* 539 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const url = __webpack_require__(835);
+const http = __webpack_require__(605);
+const https = __webpack_require__(211);
+const pm = __webpack_require__(950);
+let tunnel;
+var HttpCodes;
+(function (HttpCodes) {
+    HttpCodes[HttpCodes["OK"] = 200] = "OK";
+    HttpCodes[HttpCodes["MultipleChoices"] = 300] = "MultipleChoices";
+    HttpCodes[HttpCodes["MovedPermanently"] = 301] = "MovedPermanently";
+    HttpCodes[HttpCodes["ResourceMoved"] = 302] = "ResourceMoved";
+    HttpCodes[HttpCodes["SeeOther"] = 303] = "SeeOther";
+    HttpCodes[HttpCodes["NotModified"] = 304] = "NotModified";
+    HttpCodes[HttpCodes["UseProxy"] = 305] = "UseProxy";
+    HttpCodes[HttpCodes["SwitchProxy"] = 306] = "SwitchProxy";
+    HttpCodes[HttpCodes["TemporaryRedirect"] = 307] = "TemporaryRedirect";
+    HttpCodes[HttpCodes["PermanentRedirect"] = 308] = "PermanentRedirect";
+    HttpCodes[HttpCodes["BadRequest"] = 400] = "BadRequest";
+    HttpCodes[HttpCodes["Unauthorized"] = 401] = "Unauthorized";
+    HttpCodes[HttpCodes["PaymentRequired"] = 402] = "PaymentRequired";
+    HttpCodes[HttpCodes["Forbidden"] = 403] = "Forbidden";
+    HttpCodes[HttpCodes["NotFound"] = 404] = "NotFound";
+    HttpCodes[HttpCodes["MethodNotAllowed"] = 405] = "MethodNotAllowed";
+    HttpCodes[HttpCodes["NotAcceptable"] = 406] = "NotAcceptable";
+    HttpCodes[HttpCodes["ProxyAuthenticationRequired"] = 407] = "ProxyAuthenticationRequired";
+    HttpCodes[HttpCodes["RequestTimeout"] = 408] = "RequestTimeout";
+    HttpCodes[HttpCodes["Conflict"] = 409] = "Conflict";
+    HttpCodes[HttpCodes["Gone"] = 410] = "Gone";
+    HttpCodes[HttpCodes["InternalServerError"] = 500] = "InternalServerError";
+    HttpCodes[HttpCodes["NotImplemented"] = 501] = "NotImplemented";
+    HttpCodes[HttpCodes["BadGateway"] = 502] = "BadGateway";
+    HttpCodes[HttpCodes["ServiceUnavailable"] = 503] = "ServiceUnavailable";
+    HttpCodes[HttpCodes["GatewayTimeout"] = 504] = "GatewayTimeout";
+})(HttpCodes = exports.HttpCodes || (exports.HttpCodes = {}));
+var Headers;
+(function (Headers) {
+    Headers["Accept"] = "accept";
+    Headers["ContentType"] = "content-type";
+})(Headers = exports.Headers || (exports.Headers = {}));
+var MediaTypes;
+(function (MediaTypes) {
+    MediaTypes["ApplicationJson"] = "application/json";
+})(MediaTypes = exports.MediaTypes || (exports.MediaTypes = {}));
+/**
+ * Returns the proxy URL, depending upon the supplied url and proxy environment variables.
+ * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+ */
+function getProxyUrl(serverUrl) {
+    let proxyUrl = pm.getProxyUrl(url.parse(serverUrl));
+    return proxyUrl ? proxyUrl.href : '';
+}
+exports.getProxyUrl = getProxyUrl;
+const HttpRedirectCodes = [HttpCodes.MovedPermanently, HttpCodes.ResourceMoved, HttpCodes.SeeOther, HttpCodes.TemporaryRedirect, HttpCodes.PermanentRedirect];
+const HttpResponseRetryCodes = [HttpCodes.BadGateway, HttpCodes.ServiceUnavailable, HttpCodes.GatewayTimeout];
+const RetryableHttpVerbs = ['OPTIONS', 'GET', 'DELETE', 'HEAD'];
+const ExponentialBackoffCeiling = 10;
+const ExponentialBackoffTimeSlice = 5;
+class HttpClientResponse {
+    constructor(message) {
+        this.message = message;
+    }
+    readBody() {
+        return new Promise(async (resolve, reject) => {
+            let output = Buffer.alloc(0);
+            this.message.on('data', (chunk) => {
+                output = Buffer.concat([output, chunk]);
+            });
+            this.message.on('end', () => {
+                resolve(output.toString());
+            });
+        });
+    }
+}
+exports.HttpClientResponse = HttpClientResponse;
+function isHttps(requestUrl) {
+    let parsedUrl = url.parse(requestUrl);
+    return parsedUrl.protocol === 'https:';
+}
+exports.isHttps = isHttps;
+class HttpClient {
+    constructor(userAgent, handlers, requestOptions) {
+        this._ignoreSslError = false;
+        this._allowRedirects = true;
+        this._allowRedirectDowngrade = false;
+        this._maxRedirects = 50;
+        this._allowRetries = false;
+        this._maxRetries = 1;
+        this._keepAlive = false;
+        this._disposed = false;
+        this.userAgent = userAgent;
+        this.handlers = handlers || [];
+        this.requestOptions = requestOptions;
+        if (requestOptions) {
+            if (requestOptions.ignoreSslError != null) {
+                this._ignoreSslError = requestOptions.ignoreSslError;
+            }
+            this._socketTimeout = requestOptions.socketTimeout;
+            if (requestOptions.allowRedirects != null) {
+                this._allowRedirects = requestOptions.allowRedirects;
+            }
+            if (requestOptions.allowRedirectDowngrade != null) {
+                this._allowRedirectDowngrade = requestOptions.allowRedirectDowngrade;
+            }
+            if (requestOptions.maxRedirects != null) {
+                this._maxRedirects = Math.max(requestOptions.maxRedirects, 0);
+            }
+            if (requestOptions.keepAlive != null) {
+                this._keepAlive = requestOptions.keepAlive;
+            }
+            if (requestOptions.allowRetries != null) {
+                this._allowRetries = requestOptions.allowRetries;
+            }
+            if (requestOptions.maxRetries != null) {
+                this._maxRetries = requestOptions.maxRetries;
+            }
+        }
+    }
+    options(requestUrl, additionalHeaders) {
+        return this.request('OPTIONS', requestUrl, null, additionalHeaders || {});
+    }
+    get(requestUrl, additionalHeaders) {
+        return this.request('GET', requestUrl, null, additionalHeaders || {});
+    }
+    del(requestUrl, additionalHeaders) {
+        return this.request('DELETE', requestUrl, null, additionalHeaders || {});
+    }
+    post(requestUrl, data, additionalHeaders) {
+        return this.request('POST', requestUrl, data, additionalHeaders || {});
+    }
+    patch(requestUrl, data, additionalHeaders) {
+        return this.request('PATCH', requestUrl, data, additionalHeaders || {});
+    }
+    put(requestUrl, data, additionalHeaders) {
+        return this.request('PUT', requestUrl, data, additionalHeaders || {});
+    }
+    head(requestUrl, additionalHeaders) {
+        return this.request('HEAD', requestUrl, null, additionalHeaders || {});
+    }
+    sendStream(verb, requestUrl, stream, additionalHeaders) {
+        return this.request(verb, requestUrl, stream, additionalHeaders);
+    }
+    /**
+     * Gets a typed object from an endpoint
+     * Be aware that not found returns a null.  Other errors (4xx, 5xx) reject the promise
+     */
+    async getJson(requestUrl, additionalHeaders = {}) {
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        let res = await this.get(requestUrl, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async postJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.post(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async putJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.put(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    async patchJson(requestUrl, obj, additionalHeaders = {}) {
+        let data = JSON.stringify(obj, null, 2);
+        additionalHeaders[Headers.Accept] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.Accept, MediaTypes.ApplicationJson);
+        additionalHeaders[Headers.ContentType] = this._getExistingOrDefaultHeader(additionalHeaders, Headers.ContentType, MediaTypes.ApplicationJson);
+        let res = await this.patch(requestUrl, data, additionalHeaders);
+        return this._processResponse(res, this.requestOptions);
+    }
+    /**
+     * Makes a raw http request.
+     * All other methods such as get, post, patch, and request ultimately call this.
+     * Prefer get, del, post and patch
+     */
+    async request(verb, requestUrl, data, headers) {
+        if (this._disposed) {
+            throw new Error("Client has already been disposed.");
+        }
+        let parsedUrl = url.parse(requestUrl);
+        let info = this._prepareRequest(verb, parsedUrl, headers);
+        // Only perform retries on reads since writes may not be idempotent.
+        let maxTries = (this._allowRetries && RetryableHttpVerbs.indexOf(verb) != -1) ? this._maxRetries + 1 : 1;
+        let numTries = 0;
+        let response;
+        while (numTries < maxTries) {
+            response = await this.requestRaw(info, data);
+            // Check if it's an authentication challenge
+            if (response && response.message && response.message.statusCode === HttpCodes.Unauthorized) {
+                let authenticationHandler;
+                for (let i = 0; i < this.handlers.length; i++) {
+                    if (this.handlers[i].canHandleAuthentication(response)) {
+                        authenticationHandler = this.handlers[i];
+                        break;
+                    }
+                }
+                if (authenticationHandler) {
+                    return authenticationHandler.handleAuthentication(this, info, data);
+                }
+                else {
+                    // We have received an unauthorized response but have no handlers to handle it.
+                    // Let the response return to the caller.
+                    return response;
+                }
+            }
+            let redirectsRemaining = this._maxRedirects;
+            while (HttpRedirectCodes.indexOf(response.message.statusCode) != -1
+                && this._allowRedirects
+                && redirectsRemaining > 0) {
+                const redirectUrl = response.message.headers["location"];
+                if (!redirectUrl) {
+                    // if there's no location to redirect to, we won't
+                    break;
+                }
+                let parsedRedirectUrl = url.parse(redirectUrl);
+                if (parsedUrl.protocol == 'https:' && parsedUrl.protocol != parsedRedirectUrl.protocol && !this._allowRedirectDowngrade) {
+                    throw new Error("Redirect from HTTPS to HTTP protocol. This downgrade is not allowed for security reasons. If you want to allow this behavior, set the allowRedirectDowngrade option to true.");
+                }
+                // we need to finish reading the response before reassigning response
+                // which will leak the open socket.
+                await response.readBody();
+                // let's make the request with the new redirectUrl
+                info = this._prepareRequest(verb, parsedRedirectUrl, headers);
+                response = await this.requestRaw(info, data);
+                redirectsRemaining--;
+            }
+            if (HttpResponseRetryCodes.indexOf(response.message.statusCode) == -1) {
+                // If not a retry code, return immediately instead of retrying
+                return response;
+            }
+            numTries += 1;
+            if (numTries < maxTries) {
+                await response.readBody();
+                await this._performExponentialBackoff(numTries);
+            }
+        }
+        return response;
+    }
+    /**
+     * Needs to be called if keepAlive is set to true in request options.
+     */
+    dispose() {
+        if (this._agent) {
+            this._agent.destroy();
+        }
+        this._disposed = true;
+    }
+    /**
+     * Raw request.
+     * @param info
+     * @param data
+     */
+    requestRaw(info, data) {
+        return new Promise((resolve, reject) => {
+            let callbackForResult = function (err, res) {
+                if (err) {
+                    reject(err);
+                }
+                resolve(res);
+            };
+            this.requestRawWithCallback(info, data, callbackForResult);
+        });
+    }
+    /**
+     * Raw request with callback.
+     * @param info
+     * @param data
+     * @param onResult
+     */
+    requestRawWithCallback(info, data, onResult) {
+        let socket;
+        if (typeof (data) === 'string') {
+            info.options.headers["Content-Length"] = Buffer.byteLength(data, 'utf8');
+        }
+        let callbackCalled = false;
+        let handleResult = (err, res) => {
+            if (!callbackCalled) {
+                callbackCalled = true;
+                onResult(err, res);
+            }
+        };
+        let req = info.httpModule.request(info.options, (msg) => {
+            let res = new HttpClientResponse(msg);
+            handleResult(null, res);
+        });
+        req.on('socket', (sock) => {
+            socket = sock;
+        });
+        // If we ever get disconnected, we want the socket to timeout eventually
+        req.setTimeout(this._socketTimeout || 3 * 60000, () => {
+            if (socket) {
+                socket.end();
+            }
+            handleResult(new Error('Request timeout: ' + info.options.path), null);
+        });
+        req.on('error', function (err) {
+            // err has statusCode property
+            // res should have headers
+            handleResult(err, null);
+        });
+        if (data && typeof (data) === 'string') {
+            req.write(data, 'utf8');
+        }
+        if (data && typeof (data) !== 'string') {
+            data.on('close', function () {
+                req.end();
+            });
+            data.pipe(req);
+        }
+        else {
+            req.end();
+        }
+    }
+    /**
+     * Gets an http agent. This function is useful when you need an http agent that handles
+     * routing through a proxy server - depending upon the url and proxy environment variables.
+     * @param serverUrl  The server URL where the request will be sent. For example, https://api.github.com
+     */
+    getAgent(serverUrl) {
+        let parsedUrl = url.parse(serverUrl);
+        return this._getAgent(parsedUrl);
+    }
+    _prepareRequest(method, requestUrl, headers) {
+        const info = {};
+        info.parsedUrl = requestUrl;
+        const usingSsl = info.parsedUrl.protocol === 'https:';
+        info.httpModule = usingSsl ? https : http;
+        const defaultPort = usingSsl ? 443 : 80;
+        info.options = {};
+        info.options.host = info.parsedUrl.hostname;
+        info.options.port = info.parsedUrl.port ? parseInt(info.parsedUrl.port) : defaultPort;
+        info.options.path = (info.parsedUrl.pathname || '') + (info.parsedUrl.search || '');
+        info.options.method = method;
+        info.options.headers = this._mergeHeaders(headers);
+        if (this.userAgent != null) {
+            info.options.headers["user-agent"] = this.userAgent;
+        }
+        info.options.agent = this._getAgent(info.parsedUrl);
+        // gives handlers an opportunity to participate
+        if (this.handlers) {
+            this.handlers.forEach((handler) => {
+                handler.prepareRequest(info.options);
+            });
+        }
+        return info;
+    }
+    _mergeHeaders(headers) {
+        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => (c[k.toLowerCase()] = obj[k], c), {});
+        if (this.requestOptions && this.requestOptions.headers) {
+            return Object.assign({}, lowercaseKeys(this.requestOptions.headers), lowercaseKeys(headers));
+        }
+        return lowercaseKeys(headers || {});
+    }
+    _getExistingOrDefaultHeader(additionalHeaders, header, _default) {
+        const lowercaseKeys = obj => Object.keys(obj).reduce((c, k) => (c[k.toLowerCase()] = obj[k], c), {});
+        let clientHeader;
+        if (this.requestOptions && this.requestOptions.headers) {
+            clientHeader = lowercaseKeys(this.requestOptions.headers)[header];
+        }
+        return additionalHeaders[header] || clientHeader || _default;
+    }
+    _getAgent(parsedUrl) {
+        let agent;
+        let proxyUrl = pm.getProxyUrl(parsedUrl);
+        let useProxy = proxyUrl && proxyUrl.hostname;
+        if (this._keepAlive && useProxy) {
+            agent = this._proxyAgent;
+        }
+        if (this._keepAlive && !useProxy) {
+            agent = this._agent;
+        }
+        // if agent is already assigned use that agent.
+        if (!!agent) {
+            return agent;
+        }
+        const usingSsl = parsedUrl.protocol === 'https:';
+        let maxSockets = 100;
+        if (!!this.requestOptions) {
+            maxSockets = this.requestOptions.maxSockets || http.globalAgent.maxSockets;
+        }
+        if (useProxy) {
+            // If using proxy, need tunnel
+            if (!tunnel) {
+                tunnel = __webpack_require__(856);
+            }
+            const agentOptions = {
+                maxSockets: maxSockets,
+                keepAlive: this._keepAlive,
+                proxy: {
+                    proxyAuth: proxyUrl.auth,
+                    host: proxyUrl.hostname,
+                    port: proxyUrl.port
+                },
+            };
+            let tunnelAgent;
+            const overHttps = proxyUrl.protocol === 'https:';
+            if (usingSsl) {
+                tunnelAgent = overHttps ? tunnel.httpsOverHttps : tunnel.httpsOverHttp;
+            }
+            else {
+                tunnelAgent = overHttps ? tunnel.httpOverHttps : tunnel.httpOverHttp;
+            }
+            agent = tunnelAgent(agentOptions);
+            this._proxyAgent = agent;
+        }
+        // if reusing agent across request and tunneling agent isn't assigned create a new agent
+        if (this._keepAlive && !agent) {
+            const options = { keepAlive: this._keepAlive, maxSockets: maxSockets };
+            agent = usingSsl ? new https.Agent(options) : new http.Agent(options);
+            this._agent = agent;
+        }
+        // if not using private agent and tunnel agent isn't setup then use global agent
+        if (!agent) {
+            agent = usingSsl ? https.globalAgent : http.globalAgent;
+        }
+        if (usingSsl && this._ignoreSslError) {
+            // we don't want to set NODE_TLS_REJECT_UNAUTHORIZED=0 since that will affect request for entire process
+            // http.RequestOptions doesn't expose a way to modify RequestOptions.agent.options
+            // we have to cast it to any and change it directly
+            agent.options = Object.assign(agent.options || {}, { rejectUnauthorized: false });
+        }
+        return agent;
+    }
+    _performExponentialBackoff(retryNumber) {
+        retryNumber = Math.min(ExponentialBackoffCeiling, retryNumber);
+        const ms = ExponentialBackoffTimeSlice * Math.pow(2, retryNumber);
+        return new Promise(resolve => setTimeout(() => resolve(), ms));
+    }
+    static dateTimeDeserializer(key, value) {
+        if (typeof value === 'string') {
+            let a = new Date(value);
+            if (!isNaN(a.valueOf())) {
+                return a;
+            }
+        }
+        return value;
+    }
+    async _processResponse(res, options) {
+        return new Promise(async (resolve, reject) => {
+            const statusCode = res.message.statusCode;
+            const response = {
+                statusCode: statusCode,
+                result: null,
+                headers: {}
+            };
+            // not found leads to null obj returned
+            if (statusCode == HttpCodes.NotFound) {
+                resolve(response);
+            }
+            let obj;
+            let contents;
+            // get the result from the body
+            try {
+                contents = await res.readBody();
+                if (contents && contents.length > 0) {
+                    if (options && options.deserializeDates) {
+                        obj = JSON.parse(contents, HttpClient.dateTimeDeserializer);
+                    }
+                    else {
+                        obj = JSON.parse(contents);
+                    }
+                    response.result = obj;
+                }
+                response.headers = res.message.headers;
+            }
+            catch (err) {
+                // Invalid resource (contents not json);  leaving result obj null
+            }
+            // note that 3xx redirects are handled by the http layer.
+            if (statusCode > 299) {
+                let msg;
+                // if exception/error in body, attempt to get better error
+                if (obj && obj.message) {
+                    msg = obj.message;
+                }
+                else if (contents && contents.length > 0) {
+                    // it may be the case that the exception is in the body message as string
+                    msg = contents;
+                }
+                else {
+                    msg = "Failed request: (" + statusCode + ")";
+                }
+                let err = new Error(msg);
+                // attach statusCode and body obj (if available) to the error object
+                err['statusCode'] = statusCode;
+                if (response.result) {
+                    err['result'] = response.result;
+                }
+                reject(err);
+            }
+            else {
+                resolve(response);
+            }
+        });
+    }
+}
+exports.HttpClient = HttpClient;
+
+
+/***/ }),
 /* 540 */,
 /* 541 */
 /***/ (function(module) {
@@ -30250,122 +31161,7 @@ module.exports = require("net");
 
 
 /***/ }),
-/* 640 */
-/***/ (function(module) {
-
-// please no
-module.exports = function zalgo(text, options) {
-  text = text || '   he is here   ';
-  var soul = {
-    'up': [
-      '̍', '̎', '̄', '̅',
-      '̿', '̑', '̆', '̐',
-      '͒', '͗', '͑', '̇',
-      '̈', '̊', '͂', '̓',
-      '̈', '͊', '͋', '͌',
-      '̃', '̂', '̌', '͐',
-      '̀', '́', '̋', '̏',
-      '̒', '̓', '̔', '̽',
-      '̉', 'ͣ', 'ͤ', 'ͥ',
-      'ͦ', 'ͧ', 'ͨ', 'ͩ',
-      'ͪ', 'ͫ', 'ͬ', 'ͭ',
-      'ͮ', 'ͯ', '̾', '͛',
-      '͆', '̚',
-    ],
-    'down': [
-      '̖', '̗', '̘', '̙',
-      '̜', '̝', '̞', '̟',
-      '̠', '̤', '̥', '̦',
-      '̩', '̪', '̫', '̬',
-      '̭', '̮', '̯', '̰',
-      '̱', '̲', '̳', '̹',
-      '̺', '̻', '̼', 'ͅ',
-      '͇', '͈', '͉', '͍',
-      '͎', '͓', '͔', '͕',
-      '͖', '͙', '͚', '̣',
-    ],
-    'mid': [
-      '̕', '̛', '̀', '́',
-      '͘', '̡', '̢', '̧',
-      '̨', '̴', '̵', '̶',
-      '͜', '͝', '͞',
-      '͟', '͠', '͢', '̸',
-      '̷', '͡', ' ҉',
-    ],
-  };
-  var all = [].concat(soul.up, soul.down, soul.mid);
-
-  function randomNumber(range) {
-    var r = Math.floor(Math.random() * range);
-    return r;
-  }
-
-  function isChar(character) {
-    var bool = false;
-    all.filter(function(i) {
-      bool = (i === character);
-    });
-    return bool;
-  }
-
-
-  function heComes(text, options) {
-    var result = '';
-    var counts;
-    var l;
-    options = options || {};
-    options['up'] =
-      typeof options['up'] !== 'undefined' ? options['up'] : true;
-    options['mid'] =
-      typeof options['mid'] !== 'undefined' ? options['mid'] : true;
-    options['down'] =
-      typeof options['down'] !== 'undefined' ? options['down'] : true;
-    options['size'] =
-      typeof options['size'] !== 'undefined' ? options['size'] : 'maxi';
-    text = text.split('');
-    for (l in text) {
-      if (isChar(l)) {
-        continue;
-      }
-      result = result + text[l];
-      counts = {'up': 0, 'down': 0, 'mid': 0};
-      switch (options.size) {
-        case 'mini':
-          counts.up = randomNumber(8);
-          counts.mid = randomNumber(2);
-          counts.down = randomNumber(8);
-          break;
-        case 'maxi':
-          counts.up = randomNumber(16) + 3;
-          counts.mid = randomNumber(4) + 1;
-          counts.down = randomNumber(64) + 3;
-          break;
-        default:
-          counts.up = randomNumber(8) + 1;
-          counts.mid = randomNumber(6) / 2;
-          counts.down = randomNumber(8) + 1;
-          break;
-      }
-
-      var arr = ['up', 'mid', 'down'];
-      for (var d in arr) {
-        var index = arr[d];
-        for (var i = 0; i <= counts[index]; i++) {
-          if (options[index]) {
-            result = result + soul[index][randomNumber(soul[index].length)];
-          }
-        }
-      }
-    }
-    return result;
-  }
-  // don't summon him
-  return heComes(text, options);
-};
-
-
-
-/***/ }),
+/* 640 */,
 /* 641 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -33455,7 +34251,83 @@ module.exports = function generate_const(it, $keyword, $ruleType) {
 module.exports = require("util");
 
 /***/ }),
-/* 670 */,
+/* 670 */
+/***/ (function(module) {
+
+"use strict";
+
+
+const isHyper = process.env.TERM_PROGRAM === 'Hyper';
+const isWindows = process.platform === 'win32';
+const isLinux = process.platform === 'linux';
+
+const common = {
+  ballotDisabled: '☒',
+  ballotOff: '☐',
+  ballotOn: '☑',
+  bullet: '•',
+  bulletWhite: '◦',
+  fullBlock: '█',
+  heart: '❤',
+  identicalTo: '≡',
+  line: '─',
+  mark: '※',
+  middot: '·',
+  minus: '－',
+  multiplication: '×',
+  obelus: '÷',
+  pencilDownRight: '✎',
+  pencilRight: '✏',
+  pencilUpRight: '✐',
+  percent: '%',
+  pilcrow2: '❡',
+  pilcrow: '¶',
+  plusMinus: '±',
+  section: '§',
+  starsOff: '☆',
+  starsOn: '★',
+  upDownArrow: '↕'
+};
+
+const windows = Object.assign({}, common, {
+  check: '√',
+  cross: '×',
+  ellipsisLarge: '...',
+  ellipsis: '...',
+  info: 'i',
+  question: '?',
+  questionSmall: '?',
+  pointer: '>',
+  pointerSmall: '»',
+  radioOff: '( )',
+  radioOn: '(*)',
+  warning: '‼'
+});
+
+const other = Object.assign({}, common, {
+  ballotCross: '✘',
+  check: '✔',
+  cross: '✖',
+  ellipsisLarge: '⋯',
+  ellipsis: '…',
+  info: 'ℹ',
+  question: '?',
+  questionFull: '？',
+  questionSmall: '﹖',
+  pointer: isLinux ? '▸' : '❯',
+  pointerSmall: isLinux ? '‣' : '›',
+  radioOff: '◯',
+  radioOn: '◉',
+  warning: '⚠'
+});
+
+module.exports = (isWindows && !isHyper) ? windows : other;
+Reflect.defineProperty(module.exports, 'common', { enumerable: false, value: common });
+Reflect.defineProperty(module.exports, 'windows', { enumerable: false, value: windows });
+Reflect.defineProperty(module.exports, 'other', { enumerable: false, value: other });
+
+
+/***/ }),
 /* 671 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -33479,7 +34351,7 @@ module.exports = {
   postData: __webpack_require__(740),
   query: __webpack_require__(813),
   request: __webpack_require__(380),
-  response: __webpack_require__(226),
+  response: __webpack_require__(708),
   timings: __webpack_require__(758)
 }
 
@@ -35286,78 +36158,9 @@ function writePkcs8EdDSAPrivate(key, der) {
 
 /***/ }),
 /* 708 */
-/***/ (function(module, __unusedexports, __webpack_require__) {
+/***/ (function(module) {
 
-// Generated by CoffeeScript 1.12.7
-(function() {
-  var NodeType, XMLCharacterData, XMLText,
-    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    hasProp = {}.hasOwnProperty;
-
-  NodeType = __webpack_require__(683);
-
-  XMLCharacterData = __webpack_require__(639);
-
-  module.exports = XMLText = (function(superClass) {
-    extend(XMLText, superClass);
-
-    function XMLText(parent, text) {
-      XMLText.__super__.constructor.call(this, parent);
-      if (text == null) {
-        throw new Error("Missing element text. " + this.debugInfo());
-      }
-      this.name = "#text";
-      this.type = NodeType.Text;
-      this.value = this.stringify.text(text);
-    }
-
-    Object.defineProperty(XMLText.prototype, 'isElementContentWhitespace', {
-      get: function() {
-        throw new Error("This DOM method is not implemented." + this.debugInfo());
-      }
-    });
-
-    Object.defineProperty(XMLText.prototype, 'wholeText', {
-      get: function() {
-        var next, prev, str;
-        str = '';
-        prev = this.previousSibling;
-        while (prev) {
-          str = prev.data + str;
-          prev = prev.previousSibling;
-        }
-        str += this.data;
-        next = this.nextSibling;
-        while (next) {
-          str = str + next.data;
-          next = next.nextSibling;
-        }
-        return str;
-      }
-    });
-
-    XMLText.prototype.clone = function() {
-      return Object.create(this);
-    };
-
-    XMLText.prototype.toString = function(options) {
-      return this.options.writer.text(this, this.options.writer.filterOptions(options));
-    };
-
-    XMLText.prototype.splitText = function(offset) {
-      throw new Error("This DOM method is not implemented." + this.debugInfo());
-    };
-
-    XMLText.prototype.replaceWholeText = function(content) {
-      throw new Error("This DOM method is not implemented." + this.debugInfo());
-    };
-
-    return XMLText;
-
-  })(XMLCharacterData);
-
-}).call(this);
-
+module.exports = {"$id":"response.json#","$schema":"http://json-schema.org/draft-06/schema#","type":"object","required":["status","statusText","httpVersion","cookies","headers","content","redirectURL","headersSize","bodySize"],"properties":{"status":{"type":"integer"},"statusText":{"type":"string"},"httpVersion":{"type":"string"},"cookies":{"type":"array","items":{"$ref":"cookie.json#"}},"headers":{"type":"array","items":{"$ref":"header.json#"}},"content":{"$ref":"content.json#"},"redirectURL":{"type":"string"},"headersSize":{"type":"integer"},"bodySize":{"type":"integer"},"comment":{"type":"string"}}};
 
 /***/ }),
 /* 709 */,
@@ -35366,9 +36169,318 @@ function writePkcs8EdDSAPrivate(key, der) {
 /* 712 */,
 /* 713 */,
 /* 714 */,
-/* 715 */,
+/* 715 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core_1 = __webpack_require__(943);
+const fs = __importStar(__webpack_require__(747));
+const url_1 = __webpack_require__(835);
+const internal_utils_1 = __webpack_require__(931);
+const internal_config_variables_1 = __webpack_require__(717);
+/**
+ * Creates a file container for the new artifact in the remote blob storage/file service
+ * @param {string} artifactName Name of the artifact being created
+ * @returns The response from the Artifact Service if the file container was successfully created
+ */
+function createArtifactInFileContainer(artifactName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const parameters = {
+            Type: 'actions_storage',
+            Name: artifactName
+        };
+        const data = JSON.stringify(parameters, null, 2);
+        const artifactUrl = internal_utils_1.getArtifactUrl();
+        const client = internal_utils_1.createHttpClient();
+        const requestOptions = internal_utils_1.getRequestOptions('application/json');
+        const rawResponse = yield client.post(artifactUrl, data, requestOptions);
+        const body = yield rawResponse.readBody();
+        if (internal_utils_1.isSuccessStatusCode(rawResponse.message.statusCode) && body) {
+            return JSON.parse(body);
+        }
+        else {
+            // eslint-disable-next-line no-console
+            console.log(rawResponse);
+            throw new Error(`Unable to create a container for the artifact ${artifactName}`);
+        }
+    });
+}
+exports.createArtifactInFileContainer = createArtifactInFileContainer;
+/**
+ * Concurrently upload all of the files in chunks
+ * @param {string} uploadUrl Base Url for the artifact that was created
+ * @param {SearchResult[]} filesToUpload A list of information about the files being uploaded
+ * @returns The size of all the files uploaded in bytes
+ */
+function uploadArtifactToFileContainer(uploadUrl, filesToUpload, options) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const client = internal_utils_1.createHttpClient();
+        const FILE_CONCURRENCY = internal_config_variables_1.getUploadFileConcurrency();
+        const CHUNK_CONCURRENCY = internal_config_variables_1.getUploadChunkConcurrency();
+        const MAX_CHUNK_SIZE = internal_config_variables_1.getUploadChunkSize();
+        core_1.debug(`File Concurrency: ${FILE_CONCURRENCY}, Chunk Concurrency: ${CHUNK_CONCURRENCY} and Chunk Size: ${MAX_CHUNK_SIZE}`);
+        const parameters = [];
+        // by default, file uploads will continue if there is an error unless specified differently in the options
+        let continueOnError = true;
+        if (options) {
+            if (options.continueOnError === false) {
+                continueOnError = false;
+            }
+        }
+        // Prepare the necessary parameters to upload all the files
+        for (const file of filesToUpload) {
+            const resourceUrl = new url_1.URL(uploadUrl);
+            resourceUrl.searchParams.append('itemPath', file.uploadFilePath);
+            parameters.push({
+                file: file.absoluteFilePath,
+                resourceUrl: resourceUrl.toString(),
+                restClient: client,
+                concurrency: CHUNK_CONCURRENCY,
+                maxChunkSize: MAX_CHUNK_SIZE,
+                continueOnError
+            });
+        }
+        const parallelUploads = [...new Array(FILE_CONCURRENCY).keys()];
+        const failedItemsToReport = [];
+        let uploadedFiles = 0;
+        let fileSizes = 0;
+        let abortPendingFileUploads = false;
+        // Only allow a certain amount of files to be uploaded at once, this is done to reduce potential errors
+        yield Promise.all(parallelUploads.map(() => __awaiter(this, void 0, void 0, function* () {
+            while (uploadedFiles < filesToUpload.length) {
+                const currentFileParameters = parameters[uploadedFiles];
+                uploadedFiles += 1;
+                if (abortPendingFileUploads) {
+                    failedItemsToReport.push(currentFileParameters.file);
+                    continue;
+                }
+                const uploadFileResult = yield uploadFileAsync(currentFileParameters);
+                fileSizes += uploadFileResult.successfulUploadSize;
+                if (uploadFileResult.isSuccess === false) {
+                    failedItemsToReport.push(currentFileParameters.file);
+                    if (!continueOnError) {
+                        // Existing uploads will be able to finish however all pending uploads will fail fast
+                        abortPendingFileUploads = true;
+                    }
+                }
+            }
+        })));
+        core_1.info(`Total size of all the files uploaded is ${fileSizes} bytes`);
+        return {
+            size: fileSizes,
+            failedItems: failedItemsToReport
+        };
+    });
+}
+exports.uploadArtifactToFileContainer = uploadArtifactToFileContainer;
+/**
+ * Asynchronously uploads a file. If the file is bigger than the max chunk size it will be uploaded via multiple calls
+ * @param {UploadFileParameters} parameters Information about the file that needs to be uploaded
+ * @returns The size of the file that was uploaded in bytes along with any failed uploads
+ */
+function uploadFileAsync(parameters) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const fileSize = fs.statSync(parameters.file).size;
+        const parallelUploads = [...new Array(parameters.concurrency).keys()];
+        let offset = 0;
+        let isUploadSuccessful = true;
+        let failedChunkSizes = 0;
+        let abortFileUpload = false;
+        yield Promise.all(parallelUploads.map(() => __awaiter(this, void 0, void 0, function* () {
+            while (offset < fileSize) {
+                const chunkSize = Math.min(fileSize - offset, parameters.maxChunkSize);
+                if (abortFileUpload) {
+                    // if we don't want to continue on error, any pending upload chunk will be marked as failed
+                    failedChunkSizes += chunkSize;
+                    continue;
+                }
+                const start = offset;
+                const end = offset + chunkSize - 1;
+                offset += parameters.maxChunkSize;
+                const chunk = fs.createReadStream(parameters.file, {
+                    start,
+                    end,
+                    autoClose: false
+                });
+                const result = yield uploadChunk(parameters.restClient, parameters.resourceUrl, chunk, start, end, fileSize);
+                if (!result) {
+                    /**
+                     * Chunk failed to upload, report as failed and do not continue uploading any more chunks for the file. It is possible that part of a chunk was
+                     * successfully uploaded so the server may report a different size for what was uploaded
+                     **/
+                    isUploadSuccessful = false;
+                    failedChunkSizes += chunkSize;
+                    core_1.warning(`Aborting upload for ${parameters.file} due to failure`);
+                    abortFileUpload = true;
+                }
+            }
+        })));
+        return {
+            isSuccess: isUploadSuccessful,
+            successfulUploadSize: fileSize - failedChunkSizes
+        };
+    });
+}
+/**
+ * Uploads a chunk of an individual file to the specified resourceUrl. If the upload fails and the status code
+ * indicates a retryable status, we try to upload the chunk as well
+ * @param {HttpClient} restClient RestClient that will be making the appropriate HTTP call
+ * @param {string} resourceUrl Url of the resource that the chunk will be uploaded to
+ * @param {NodeJS.ReadableStream} data Stream of the file that will be uploaded
+ * @param {number} start Starting byte index of file that the chunk belongs to
+ * @param {number} end Ending byte index of file that the chunk belongs to
+ * @param {number} totalSize Total size of the file in bytes that is being uploaded
+ * @returns if the chunk was successfully uploaded
+ */
+function uploadChunk(restClient, resourceUrl, data, start, end, totalSize) {
+    return __awaiter(this, void 0, void 0, function* () {
+        core_1.info(`Uploading chunk of size ${end -
+            start +
+            1} bytes at offset ${start} with content range: ${internal_utils_1.getContentRange(start, end, totalSize)}`);
+        const requestOptions = internal_utils_1.getRequestOptions('application/octet-stream', totalSize, internal_utils_1.getContentRange(start, end, totalSize));
+        const uploadChunkRequest = () => __awaiter(this, void 0, void 0, function* () {
+            return yield restClient.sendStream('PUT', resourceUrl, data, requestOptions);
+        });
+        const response = yield uploadChunkRequest();
+        if (internal_utils_1.isSuccessStatusCode(response.message.statusCode)) {
+            core_1.debug(`Chunk for ${start}:${end} was successfully uploaded to ${resourceUrl}`);
+            return true;
+        }
+        else if (internal_utils_1.isRetryableStatusCode(response.message.statusCode)) {
+            core_1.info(`Received http ${response.message.statusCode} during chunk upload, will retry at offset ${start} after 10 seconds.`);
+            yield new Promise(resolve => setTimeout(resolve, 10000));
+            const retryResponse = yield uploadChunkRequest();
+            if (internal_utils_1.isSuccessStatusCode(retryResponse.message.statusCode)) {
+                return true;
+            }
+            else {
+                core_1.info(`Unable to upload chunk even after retrying`);
+                // eslint-disable-next-line no-console
+                console.log(response);
+                return false;
+            }
+        }
+        // Upload must have failed spectacularly somehow, log full result for diagnostic purposes
+        // eslint-disable-next-line no-console
+        console.log(response);
+        return false;
+    });
+}
+/**
+ * Updates the size of the artifact from -1 which was initially set when the container was first created for the artifact.
+ * Updating the size indicates that we are done uploading all the contents of the artifact. A server side check will be run
+ * to check that the artifact size is correct for billing purposes
+ */
+function patchArtifactSize(size, artifactName) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const client = internal_utils_1.createHttpClient();
+        const requestOptions = internal_utils_1.getRequestOptions('application/json');
+        const resourceUrl = new url_1.URL(internal_utils_1.getArtifactUrl());
+        resourceUrl.searchParams.append('artifactName', artifactName);
+        const parameters = { Size: size };
+        const data = JSON.stringify(parameters, null, 2);
+        core_1.debug(`URL is ${resourceUrl.toString()}`);
+        const rawResponse = yield client.patch(resourceUrl.toString(), data, requestOptions);
+        const body = yield rawResponse.readBody();
+        if (internal_utils_1.isSuccessStatusCode(rawResponse.message.statusCode)) {
+            core_1.debug(`Artifact ${artifactName} has been successfully uploaded, total size ${size}`);
+            core_1.debug(body);
+        }
+        else if (rawResponse.message.statusCode === 404) {
+            throw new Error(`An Artifact with the name ${artifactName} was not found`);
+        }
+        else {
+            // eslint-disable-next-line no-console
+            console.log(body);
+            throw new Error(`Unable to finish uploading artifact ${artifactName}`);
+        }
+    });
+}
+exports.patchArtifactSize = patchArtifactSize;
+//# sourceMappingURL=internal-upload-http-client.js.map
+
+/***/ }),
 /* 716 */,
-/* 717 */,
+/* 717 */
+/***/ (function(__unusedmodule, exports) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+function getUploadFileConcurrency() {
+    return 2;
+}
+exports.getUploadFileConcurrency = getUploadFileConcurrency;
+function getUploadChunkConcurrency() {
+    return 1;
+}
+exports.getUploadChunkConcurrency = getUploadChunkConcurrency;
+function getUploadChunkSize() {
+    return 4 * 1024 * 1024; // 4 MB Chunks
+}
+exports.getUploadChunkSize = getUploadChunkSize;
+function getDownloadFileConcurrency() {
+    return 2;
+}
+exports.getDownloadFileConcurrency = getDownloadFileConcurrency;
+function getDownloadArtifactConcurrency() {
+    // when downloading all artifact at once, this is number of concurrent artifacts being downloaded
+    return 1;
+}
+exports.getDownloadArtifactConcurrency = getDownloadArtifactConcurrency;
+function getRuntimeToken() {
+    const token = process.env['ACTIONS_RUNTIME_TOKEN'];
+    if (!token) {
+        throw new Error('Unable to get ACTIONS_RUNTIME_TOKEN env variable');
+    }
+    return token;
+}
+exports.getRuntimeToken = getRuntimeToken;
+function getRuntimeUrl() {
+    const runtimeUrl = process.env['ACTIONS_RUNTIME_URL'];
+    if (!runtimeUrl) {
+        throw new Error('Unable to get ACTIONS_RUNTIME_URL env variable');
+    }
+    return runtimeUrl;
+}
+exports.getRuntimeUrl = getRuntimeUrl;
+function getWorkFlowRunId() {
+    const workFlowRunId = process.env['GITHUB_RUN_ID'];
+    if (!workFlowRunId) {
+        throw new Error('Unable to get GITHUB_RUN_ID env variable');
+    }
+    return workFlowRunId;
+}
+exports.getWorkFlowRunId = getWorkFlowRunId;
+function getWorkSpaceDirectory() {
+    const workspaceDirectory = process.env['GITHUB_WORKSPACE'];
+    if (!workspaceDirectory) {
+        throw new Error('Unable to get GITHUB_WORKSPACE env variable');
+    }
+    return workspaceDirectory;
+}
+exports.getWorkSpaceDirectory = getWorkSpaceDirectory;
+//# sourceMappingURL=internal-config-variables.js.map
+
+/***/ }),
 /* 718 */,
 /* 719 */,
 /* 720 */,
@@ -36084,17 +37196,7 @@ module.exports = exports
 /***/ }),
 /* 730 */,
 /* 731 */,
-/* 732 */
-/***/ (function(module) {
-
-module.exports = function(colors) {
-  return function(letter, i, exploded) {
-    return i % 2 === 0 ? letter : colors.inverse(letter);
-  };
-};
-
-
-/***/ }),
+/* 732 */,
 /* 733 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
@@ -39806,22 +40908,7 @@ module.exports = require("url");
 module.exports = {"$id":"header.json#","$schema":"http://json-schema.org/draft-06/schema#","type":"object","required":["name","value"],"properties":{"name":{"type":"string"},"value":{"type":"string"},"comment":{"type":"string"}}};
 
 /***/ }),
-/* 842 */
-/***/ (function(module) {
-
-module.exports = function(colors) {
-  return function(letter, i, exploded) {
-    if (letter === ' ') return letter;
-    switch (i%3) {
-      case 0: return colors.red(letter);
-      case 1: return colors.white(letter);
-      case 2: return colors.blue(letter);
-    }
-  };
-};
-
-
-/***/ }),
+/* 842 */,
 /* 843 */,
 /* 844 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -42685,7 +43772,13 @@ function registerPlugin(plugins, pluginFunction) {
 
 
 /***/ }),
-/* 856 */,
+/* 856 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+module.exports = __webpack_require__(141);
+
+
+/***/ }),
 /* 857 */,
 /* 858 */
 /***/ (function(module) {
@@ -48319,7 +49412,133 @@ function hasNextPage (link) {
 
 /***/ }),
 /* 930 */,
-/* 931 */,
+/* 931 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const core_1 = __webpack_require__(943);
+const fs_1 = __webpack_require__(747);
+const http_client_1 = __webpack_require__(539);
+const auth_1 = __webpack_require__(226);
+const internal_config_variables_1 = __webpack_require__(717);
+/**
+ * Parses a env variable that is a number
+ */
+function parseEnvNumber(key) {
+    const value = Number(process.env[key]);
+    if (Number.isNaN(value) || value < 0) {
+        return undefined;
+    }
+    return value;
+}
+exports.parseEnvNumber = parseEnvNumber;
+/**
+ * Various utility functions to help with the necessary API calls
+ */
+function getApiVersion() {
+    return '6.0-preview';
+}
+exports.getApiVersion = getApiVersion;
+function isSuccessStatusCode(statusCode) {
+    if (!statusCode) {
+        return false;
+    }
+    return statusCode >= 200 && statusCode < 300;
+}
+exports.isSuccessStatusCode = isSuccessStatusCode;
+function isRetryableStatusCode(statusCode) {
+    if (!statusCode) {
+        return false;
+    }
+    const retryableStatusCodes = [
+        http_client_1.HttpCodes.BadGateway,
+        http_client_1.HttpCodes.ServiceUnavailable,
+        http_client_1.HttpCodes.GatewayTimeout
+    ];
+    return retryableStatusCodes.includes(statusCode);
+}
+exports.isRetryableStatusCode = isRetryableStatusCode;
+function getContentRange(start, end, total) {
+    // Format: `bytes start-end/fileSize
+    // start and end are inclusive
+    // For a 200 byte chunk starting at byte 0:
+    // Content-Range: bytes 0-199/200
+    return `bytes ${start}-${end}/${total}`;
+}
+exports.getContentRange = getContentRange;
+function getRequestOptions(contentType, contentLength, contentRange) {
+    const requestOptions = {
+        Accept: `application/json;api-version=${getApiVersion()}`
+    };
+    if (contentType) {
+        requestOptions['Content-Type'] = contentType;
+    }
+    if (contentLength) {
+        requestOptions['Content-Length'] = contentLength;
+    }
+    if (contentRange) {
+        requestOptions['Content-Range'] = contentRange;
+    }
+    return requestOptions;
+}
+exports.getRequestOptions = getRequestOptions;
+function createHttpClient() {
+    return new http_client_1.HttpClient('action/artifact', [
+        new auth_1.BearerCredentialHandler(internal_config_variables_1.getRuntimeToken())
+    ]);
+}
+exports.createHttpClient = createHttpClient;
+function getArtifactUrl() {
+    const artifactUrl = `${internal_config_variables_1.getRuntimeUrl()}_apis/pipelines/workflows/${internal_config_variables_1.getWorkFlowRunId()}/artifacts?api-version=${getApiVersion()}`;
+    core_1.debug(`Artifact Url: ${artifactUrl}`);
+    return artifactUrl;
+}
+exports.getArtifactUrl = getArtifactUrl;
+/**
+ * Invalid characters that cannot be in the artifact name or an uploaded file. Will be rejected
+ * from the server if attempted to be sent over. These characters are not allowed due to limitations with certain
+ * file systems such as NTFS. To maintain platform-agnostic behavior, all characters that are not supported by an
+ * individual filesystem/platform will not be supported on all fileSystems/platforms
+ */
+const invalidCharacters = ['\\', '/', '"', ':', '<', '>', '|', '*', '?', ' '];
+/**
+ * Scans the name of the item being uploaded to make sure there are no illegal characters
+ */
+function checkArtifactName(name) {
+    if (!name) {
+        throw new Error(`Artifact name: ${name}, is incorrectly provided`);
+    }
+    for (const invalidChar of invalidCharacters) {
+        if (name.includes(invalidChar)) {
+            throw new Error(`Artifact name is not valid: ${name}. Contains character: "${invalidChar}". Invalid characters include: ${invalidCharacters.toString()}.`);
+        }
+    }
+}
+exports.checkArtifactName = checkArtifactName;
+function createDirectoriesForArtifact(directories) {
+    return __awaiter(this, void 0, void 0, function* () {
+        for (const directory of directories) {
+            yield fs_1.promises.mkdir(directory, {
+                recursive: true
+            });
+        }
+    });
+}
+exports.createDirectoriesForArtifact = createDirectoriesForArtifact;
+//# sourceMappingURL=internal-utils.js.map
+
+/***/ }),
 /* 932 */,
 /* 933 */,
 /* 934 */,
@@ -48736,7 +49955,214 @@ module.exports.canonicalizeResource = canonicalizeResource
 
 
 /***/ }),
-/* 943 */,
+/* 943 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const command_1 = __webpack_require__(997);
+const os = __importStar(__webpack_require__(87));
+const path = __importStar(__webpack_require__(622));
+/**
+ * The code to exit an action
+ */
+var ExitCode;
+(function (ExitCode) {
+    /**
+     * A code indicating that the action was successful
+     */
+    ExitCode[ExitCode["Success"] = 0] = "Success";
+    /**
+     * A code indicating that the action was a failure
+     */
+    ExitCode[ExitCode["Failure"] = 1] = "Failure";
+})(ExitCode = exports.ExitCode || (exports.ExitCode = {}));
+//-----------------------------------------------------------------------
+// Variables
+//-----------------------------------------------------------------------
+/**
+ * Sets env variable for this action and future actions in the job
+ * @param name the name of the variable to set
+ * @param val the value of the variable
+ */
+function exportVariable(name, val) {
+    process.env[name] = val;
+    command_1.issueCommand('set-env', { name }, val);
+}
+exports.exportVariable = exportVariable;
+/**
+ * Registers a secret which will get masked from logs
+ * @param secret value of the secret
+ */
+function setSecret(secret) {
+    command_1.issueCommand('add-mask', {}, secret);
+}
+exports.setSecret = setSecret;
+/**
+ * Prepends inputPath to the PATH (for this action and future actions)
+ * @param inputPath
+ */
+function addPath(inputPath) {
+    command_1.issueCommand('add-path', {}, inputPath);
+    process.env['PATH'] = `${inputPath}${path.delimiter}${process.env['PATH']}`;
+}
+exports.addPath = addPath;
+/**
+ * Gets the value of an input.  The value is also trimmed.
+ *
+ * @param     name     name of the input to get
+ * @param     options  optional. See InputOptions.
+ * @returns   string
+ */
+function getInput(name, options) {
+    const val = process.env[`INPUT_${name.replace(/ /g, '_').toUpperCase()}`] || '';
+    if (options && options.required && !val) {
+        throw new Error(`Input required and not supplied: ${name}`);
+    }
+    return val.trim();
+}
+exports.getInput = getInput;
+/**
+ * Sets the value of an output.
+ *
+ * @param     name     name of the output to set
+ * @param     value    value to store
+ */
+function setOutput(name, value) {
+    command_1.issueCommand('set-output', { name }, value);
+}
+exports.setOutput = setOutput;
+//-----------------------------------------------------------------------
+// Results
+//-----------------------------------------------------------------------
+/**
+ * Sets the action status to failed.
+ * When the action exits it will be with an exit code of 1
+ * @param message add error issue message
+ */
+function setFailed(message) {
+    process.exitCode = ExitCode.Failure;
+    error(message);
+}
+exports.setFailed = setFailed;
+//-----------------------------------------------------------------------
+// Logging Commands
+//-----------------------------------------------------------------------
+/**
+ * Writes debug message to user log
+ * @param message debug message
+ */
+function debug(message) {
+    command_1.issueCommand('debug', {}, message);
+}
+exports.debug = debug;
+/**
+ * Adds an error issue
+ * @param message error issue message
+ */
+function error(message) {
+    command_1.issue('error', message);
+}
+exports.error = error;
+/**
+ * Adds an warning issue
+ * @param message warning issue message
+ */
+function warning(message) {
+    command_1.issue('warning', message);
+}
+exports.warning = warning;
+/**
+ * Writes info to log with console.log.
+ * @param message info message
+ */
+function info(message) {
+    process.stdout.write(message + os.EOL);
+}
+exports.info = info;
+/**
+ * Begin an output group.
+ *
+ * Output until the next `groupEnd` will be foldable in this group
+ *
+ * @param name The name of the output group
+ */
+function startGroup(name) {
+    command_1.issue('group', name);
+}
+exports.startGroup = startGroup;
+/**
+ * End an output group.
+ */
+function endGroup() {
+    command_1.issue('endgroup');
+}
+exports.endGroup = endGroup;
+/**
+ * Wrap an asynchronous function call in a group.
+ *
+ * Returns the same type as the function itself.
+ *
+ * @param name The name of the group
+ * @param fn The function to wrap in the group
+ */
+function group(name, fn) {
+    return __awaiter(this, void 0, void 0, function* () {
+        startGroup(name);
+        let result;
+        try {
+            result = yield fn();
+        }
+        finally {
+            endGroup();
+        }
+        return result;
+    });
+}
+exports.group = group;
+//-----------------------------------------------------------------------
+// Wrapper action state
+//-----------------------------------------------------------------------
+/**
+ * Saves state for current action, the state can only be retrieved by this action's post job execution.
+ *
+ * @param     name     name of the state to store
+ * @param     value    value to store
+ */
+function saveState(name, value) {
+    command_1.issueCommand('save-state', { name }, value);
+}
+exports.saveState = saveState;
+/**
+ * Gets the value of an state set by this action's main execution.
+ *
+ * @param     name     name of the state to get
+ * @returns   string
+ */
+function getState(name) {
+    return process.env[`STATE_${name}`] || '';
+}
+exports.getState = getState;
+//# sourceMappingURL=core.js.map
+
+/***/ }),
 /* 944 */
 /***/ (function(module) {
 
@@ -48940,7 +50366,70 @@ module.exports = wait;
 
 
 /***/ }),
-/* 950 */,
+/* 950 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", { value: true });
+const url = __webpack_require__(835);
+function getProxyUrl(reqUrl) {
+    let usingSsl = reqUrl.protocol === 'https:';
+    let proxyUrl;
+    if (checkBypass(reqUrl)) {
+        return proxyUrl;
+    }
+    let proxyVar;
+    if (usingSsl) {
+        proxyVar = process.env["https_proxy"] ||
+            process.env["HTTPS_PROXY"];
+    }
+    else {
+        proxyVar = process.env["http_proxy"] ||
+            process.env["HTTP_PROXY"];
+    }
+    if (proxyVar) {
+        proxyUrl = url.parse(proxyVar);
+    }
+    return proxyUrl;
+}
+exports.getProxyUrl = getProxyUrl;
+function checkBypass(reqUrl) {
+    if (!reqUrl.hostname) {
+        return false;
+    }
+    let noProxy = process.env["no_proxy"] || process.env["NO_PROXY"] || '';
+    if (!noProxy) {
+        return false;
+    }
+    // Determine the request port
+    let reqPort;
+    if (reqUrl.port) {
+        reqPort = Number(reqUrl.port);
+    }
+    else if (reqUrl.protocol === 'http:') {
+        reqPort = 80;
+    }
+    else if (reqUrl.protocol === 'https:') {
+        reqPort = 443;
+    }
+    // Format the request hostname and hostname with port
+    let upperReqHosts = [reqUrl.hostname.toUpperCase()];
+    if (typeof reqPort === 'number') {
+        upperReqHosts.push(`${upperReqHosts[0]}:${reqPort}`);
+    }
+    // Compare request host against noproxy
+    for (let upperNoProxyItem of noProxy.split(',').map(x => x.trim().toUpperCase()).filter(x => x)) {
+        if (upperReqHosts.some(x => x === upperNoProxyItem)) {
+            return true;
+        }
+    }
+    return false;
+}
+exports.checkBypass = checkBypass;
+
+
+/***/ }),
 /* 951 */,
 /* 952 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -50018,23 +51507,7 @@ module.exports = {
 
 /***/ }),
 /* 960 */,
-/* 961 */
-/***/ (function(module) {
-
-module.exports = function(colors) {
-  var available = ['underline', 'inverse', 'grey', 'yellow', 'red', 'green',
-    'blue', 'white', 'cyan', 'magenta', 'brightYellow', 'brightRed',
-    'brightGreen', 'brightBlue', 'brightWhite', 'brightCyan', 'brightMagenta'];
-  return function(letter, i, exploded) {
-    return letter === ' ' ? letter :
-      colors[
-          available[Math.round(Math.random() * (available.length - 2))]
-      ](letter);
-  };
-};
-
-
-/***/ }),
+/* 961 */,
 /* 962 */,
 /* 963 */,
 /* 964 */
@@ -51169,7 +52642,81 @@ function DoublyLinkedNode(key, val) {
 /***/ }),
 /* 986 */,
 /* 987 */,
-/* 988 */,
+/* 988 */
+/***/ (function(module, __unusedexports, __webpack_require__) {
+
+// Generated by CoffeeScript 1.12.7
+(function() {
+  var NodeType, XMLCharacterData, XMLText,
+    extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+    hasProp = {}.hasOwnProperty;
+
+  NodeType = __webpack_require__(683);
+
+  XMLCharacterData = __webpack_require__(639);
+
+  module.exports = XMLText = (function(superClass) {
+    extend(XMLText, superClass);
+
+    function XMLText(parent, text) {
+      XMLText.__super__.constructor.call(this, parent);
+      if (text == null) {
+        throw new Error("Missing element text. " + this.debugInfo());
+      }
+      this.name = "#text";
+      this.type = NodeType.Text;
+      this.value = this.stringify.text(text);
+    }
+
+    Object.defineProperty(XMLText.prototype, 'isElementContentWhitespace', {
+      get: function() {
+        throw new Error("This DOM method is not implemented." + this.debugInfo());
+      }
+    });
+
+    Object.defineProperty(XMLText.prototype, 'wholeText', {
+      get: function() {
+        var next, prev, str;
+        str = '';
+        prev = this.previousSibling;
+        while (prev) {
+          str = prev.data + str;
+          prev = prev.previousSibling;
+        }
+        str += this.data;
+        next = this.nextSibling;
+        while (next) {
+          str = str + next.data;
+          next = next.nextSibling;
+        }
+        return str;
+      }
+    });
+
+    XMLText.prototype.clone = function() {
+      return Object.create(this);
+    };
+
+    XMLText.prototype.toString = function(options) {
+      return this.options.writer.text(this, this.options.writer.filterOptions(options));
+    };
+
+    XMLText.prototype.splitText = function(offset) {
+      throw new Error("This DOM method is not implemented." + this.debugInfo());
+    };
+
+    XMLText.prototype.replaceWholeText = function(content) {
+      throw new Error("This DOM method is not implemented." + this.debugInfo());
+    };
+
+    return XMLText;
+
+  })(XMLCharacterData);
+
+}).call(this);
+
+
+/***/ }),
 /* 989 */,
 /* 990 */,
 /* 991 */,
@@ -51227,7 +52774,90 @@ module.exports = {"$id":"cache.json#","$schema":"http://json-schema.org/draft-06
 /* 994 */,
 /* 995 */,
 /* 996 */,
-/* 997 */,
+/* 997 */
+/***/ (function(__unusedmodule, exports, __webpack_require__) {
+
+"use strict";
+
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) result[k] = mod[k];
+    result["default"] = mod;
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+const os = __importStar(__webpack_require__(87));
+/**
+ * Commands
+ *
+ * Command Format:
+ *   ::name key=value,key=value::message
+ *
+ * Examples:
+ *   ::warning::This is the message
+ *   ::set-env name=MY_VAR::some value
+ */
+function issueCommand(command, properties, message) {
+    const cmd = new Command(command, properties, message);
+    process.stdout.write(cmd.toString() + os.EOL);
+}
+exports.issueCommand = issueCommand;
+function issue(name, message = '') {
+    issueCommand(name, {}, message);
+}
+exports.issue = issue;
+const CMD_STRING = '::';
+class Command {
+    constructor(command, properties, message) {
+        if (!command) {
+            command = 'missing.command';
+        }
+        this.command = command;
+        this.properties = properties;
+        this.message = message;
+    }
+    toString() {
+        let cmdStr = CMD_STRING + this.command;
+        if (this.properties && Object.keys(this.properties).length > 0) {
+            cmdStr += ' ';
+            let first = true;
+            for (const key in this.properties) {
+                if (this.properties.hasOwnProperty(key)) {
+                    const val = this.properties[key];
+                    if (val) {
+                        if (first) {
+                            first = false;
+                        }
+                        else {
+                            cmdStr += ',';
+                        }
+                        cmdStr += `${key}=${escapeProperty(val)}`;
+                    }
+                }
+            }
+        }
+        cmdStr += `${CMD_STRING}${escapeData(this.message)}`;
+        return cmdStr;
+    }
+}
+function escapeData(s) {
+    return (s || '')
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A');
+}
+function escapeProperty(s) {
+    return (s || '')
+        .replace(/%/g, '%25')
+        .replace(/\r/g, '%0D')
+        .replace(/\n/g, '%0A')
+        .replace(/:/g, '%3A')
+        .replace(/,/g, '%2C');
+}
+//# sourceMappingURL=command.js.map
+
+/***/ }),
 /* 998 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
 
