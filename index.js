@@ -46,7 +46,11 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
         var jsonbody = JSON.parse(body);
         resolve(jsonbody);
       } else {
-        reject(error);
+        if (error) 
+          reject(new Error("test execution failed."));
+        else {
+          reject(new Error("HTTP status code : " + String(response.statusCode)));
+        }
       }
     });
   });
@@ -71,7 +75,11 @@ function check_finish(accesskey, projectid, ts_id) {
         var jsonbody = JSON.parse(body);
         resolve(jsonbody);
       } else {
-        reject(error);
+        if (error) 
+          reject(new Error("test execution failed."));
+        else {
+          reject(new Error("HTTP status code : " + String(response.statusCode)));
+        }
       }
     });
   });
@@ -170,6 +178,10 @@ async function run() {
 
     if (!binarypath) {
       throw Error("binary_path is required parameter.");
+    }
+
+    if (!fs.existsSync(binarypath)) {
+      throw Error("binary_path file not exists.")
     }
 
     var testsetname = core.getInput('test_set_name');

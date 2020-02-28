@@ -2298,7 +2298,7 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
   return new Promise((resolve, reject) => {
     const options = {
       method: "POST",
-      url: "https://api.apptest.ai//openapi/v1/test/run",
+      url: "https://api.apptest.ai/openapi/v1/test/run",
       port: 443,
       auth: {
         user: auth_token[0],
@@ -2318,7 +2318,11 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
         var jsonbody = JSON.parse(body);
         resolve(jsonbody);
       } else {
-        reject(error);
+        if (error) 
+          reject(new Error("test execution failed."));
+        else {
+          reject(new Error("HTTP status code : " + String(response.statusCode)));
+        }
       }
     });
   });
@@ -2343,7 +2347,11 @@ function check_finish(accesskey, projectid, ts_id) {
         var jsonbody = JSON.parse(body);
         resolve(jsonbody);
       } else {
-        reject(error);
+        if (error) 
+          reject(new Error("test execution failed."));
+        else {
+          reject(new Error("HTTP status code : " + String(response.statusCode)));
+        }
       }
     });
   });
@@ -2444,6 +2452,10 @@ async function run() {
       throw Error("binary_path is required parameter.");
     }
 
+    if (!fs.existsSync(binarypath)) {
+      throw Error("binary_path file not exists.")
+    }
+
     var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
       testsetname = github.context.payload.head_commit.message;
@@ -2456,6 +2468,9 @@ async function run() {
       let http_promise_execute = execute_test(accesskey, projectid, binarypath, testsetname);
       let ret = await http_promise_execute;
 
+      if (!('tsid' in ret))
+        throw Error("Test initialize failed.");
+      
       ts_id = ret['data']['tsid'];
       core.info((new Date()).toTimeString() + " Test initated.");
     } catch(error) {
@@ -2516,7 +2531,7 @@ async function run() {
   }
 }
 
-module.exports = {get_error_in_xml, get_error_in_json, get_result};
+module.exports = {get_error_in_xml, get_error_in_json, get_result, execute_test, check_finish};
 if (require.main === require.cache[eval('__filename')]) {
   run();
 }
