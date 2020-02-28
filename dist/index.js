@@ -2280,7 +2280,7 @@ const xml2js = __webpack_require__(992)
 const c = __webpack_require__(14);
 
 const artifactClient = artifact.create()
-const artifactName = 'apptest.ai test results';
+const artifactName = 'apptest.ai_test_results';
 
 const files = [
   'test-results/tests.html',
@@ -2446,8 +2446,9 @@ async function run() {
 
     var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
-      testsetname = github.context.sha;
-      console.log(github.context);
+      testsetname = github.context.payload.head_commit.message;
+      if (!testsetname)
+        testsetname = github.context.sha;
     }
 
     var ts_id;
@@ -2493,9 +2494,7 @@ async function run() {
           create_test_result_file("tests.html", ret['data']['result_html']);
           core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
           create_test_result_file("tests.xml", ret['data']['result_xml']);
-
-          await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
-        
+      
           running = false;
         }
         retry_count = 0;
@@ -2509,6 +2508,8 @@ async function run() {
         }
       }
     }
+    core.info((new Date()).toTimeString() + " Upload artifacts");
+    await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
   } catch (error) {
     core.setFailed(error);
   }
