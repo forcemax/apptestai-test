@@ -26,7 +26,7 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
   return new Promise((resolve, reject) => {
     const options = {
       method: "POST",
-      url: "https://api.apptest.ai//openapi/v1/test/run",
+      url: "https://api.apptest.ai/openapi/v1/test/run",
       port: 443,
       auth: {
         user: auth_token[0],
@@ -184,6 +184,9 @@ async function run() {
       let http_promise_execute = execute_test(accesskey, projectid, binarypath, testsetname);
       let ret = await http_promise_execute;
 
+      if (!('tsid' in ret))
+        throw Error("Test initialize failed.");
+      
       ts_id = ret['data']['tsid'];
       core.info((new Date()).toTimeString() + " Test initated.");
     } catch(error) {
@@ -244,7 +247,7 @@ async function run() {
   }
 }
 
-module.exports = {get_error_in_xml, get_error_in_json, get_result};
+module.exports = {get_error_in_xml, get_error_in_json, get_result, execute_test, check_finish};
 if (require.main === module) {
   run();
 }
