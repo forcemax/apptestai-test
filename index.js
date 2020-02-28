@@ -1,10 +1,24 @@
 const github = require('@actions/github');
+const artifact = require('@actions/artifact');
 const core = require('@actions/core');
 const wait = require('./wait');
 const request = require('request');
 const fs = require('fs');
 const xml2js = require('xml2js')
-const colors = require('colors/safe');
+const c = require('ansi-colors');
+
+const artifactClient = artifact.create()
+const artifactName = 'apptest.ai test results';
+
+const files = [
+  'test-results/tests.html',
+  'test-results/tests.xml'
+]
+
+const rootDirectory = '.'
+const options = {
+    continueOnError: false
+}
 
 function execute_test(accesskey, projectid, packagefile, testsetname) {
   var auth_token = accesskey.split(':');
@@ -63,12 +77,51 @@ function check_finish(accesskey, projectid, ts_id) {
   });
 }
 
-function getErrorInXml(xmlString) {
+function create_test_results_directory() {
+  var dir = './test-results';
+
+  if (!fs.existsSync(dir)){
+      fs.mkdirSync(dir);
+  }
+}
+
+function create_test_result_file(filename, content) {
+  var dir = './test-results';
+  var filepath = dir + "/" + filename;
+
+  fs.writeFile(filepath, content, (error) => {
+    if (error) {
+      console.error("cannot create file " + filepath);
+    }
+  });
+}
+
+function get_result(json_string, error_only=false) {
+  var result = JSON.parse(json_string);
+  var outputTable = "";
+  outputTable += "+-----------------------------------------------------------------+\n";
+  outputTable += "|                        Device                        |  Result  |\n";
+  outputTable += "+-----------------------------------------------------------------+\n";
+
+  var testcases = result.testsuites.testsuite[0].testcase;
+  testcases.forEach(element => {
+    if (error_only && ! ('error' in element))
+      return;
+    outputTable += '| ' + element.name.padEnd(52) + ' |  ' + ('error' in element ? c.red('Failed') : c.green('Passed')) + '  |\n';
+    if ('error' in element) 
+      outputTable += '<a href="' + element.error.message + '">'+ element.name +'</a>\n';
+  });
+  outputTable += "+-----------------------------------------------------------------+\n";
+
+  return outputTable;
+}
+
+function get_error_in_xml(xml_string) {
   var parser = xml2js.Parser({ attrkey: "ATTR" });
   var errors = new Array();
 
   try {
-    parser.parseString(xmlString, function(err, result) {
+    parser.parseString(xml_string, function(err, result) {
       if (err) {
         return;
       }
@@ -85,23 +138,8 @@ function getErrorInXml(xmlString) {
   }
 }
 
-function printResult(jsonString) {
-  var result = JSON.parse(jsonString);
-  console.log("+-----------------------------------------------------------------+");
-  console.log("|                        Device                        |  Result  |");
-  console.log("+-----------------------------------------------------------------+");
-
-  var testcases = result.testsuites.testsuite[0].testcase;
-  testcases.forEach(element => {
-    var device = '| ' + element.name.padEnd(52) + " |  " + ('error' in element ? colors.red('Failed') : colors.green('Passed')) + "  |";
-    console.log(device);
-  });
-
-  console.log("+-----------------------------------------------------------------+");
-}
-
-function getErrorInJson(jsonString) {
-  var result = JSON.parse(jsonString);
+function get_error_in_json(json_string) {
+  var result = JSON.parse(json_string);
   var errors = new Array();
   
   var testcases = result.testsuites.testsuite[0].testcase;
@@ -137,6 +175,7 @@ async function run() {
     var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
       testsetname = github.context.sha;
+      console.log(github.context);
     }
 
     var ts_id;
@@ -165,25 +204,26 @@ async function run() {
 
         if (ret['complete'] == true) {
           core.info((new Date()).toTimeString() + " Test finished.");
-          // core.setOutput(ret['data']['result_xml']);
-          printResult(ret['data']['result_json']);          
-          var errors = getErrorInJson(ret['data']['result_json']);
+
+          var errors = get_error_in_json(ret['data']['result_json']);
           if (errors) {
             if (errors.length > 0) {
-              var error_msg = '';
-              errors.forEach(element => {
-                var msg = element.error.message;
-                if (error_msg == '') {
-                  error_msg = msg;
-                } else {
-                  error_msg = error_msg + ' ' + msg;
-                }
-              });
-              core.setFailed(error_msg);
+              var output_error = get_result(ret['data']['result_json'], true);
+              core.setFailed(output_error);
             } else {
-              core.setOutput("no error found.");
+              var output_table = get_result(ret['data']['result_json']);
+              core.setOutput(output_table);
             }
           }
+
+          create_test_results_directory();
+          core.info((new Date()).toTimeString() + " Test result(Full HTML) saved: test-results/tests.html");
+          create_test_result_file("tests.html", ret['data']['result_html']);
+          core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
+          create_test_result_file("tests.xml", ret['data']['result_xml']);
+
+          await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
+        
           running = false;
         }
         retry_count = 0;
@@ -202,7 +242,7 @@ async function run() {
   }
 }
 
-module.exports = {getErrorInXml, getErrorInJson, printResult};
+module.exports = {get_error_in_xml, get_error_in_json, get_result};
 if (require.main === module) {
   run();
 }
