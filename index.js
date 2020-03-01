@@ -214,7 +214,7 @@ async function run() {
       let http_promise_execute = execute_test(accesskey, projectid, binarypath, testsetname);
       let ret = await http_promise_execute;
 
-      if (!('tsid' in ret))
+      if (!('tsid' in ret['data']))
         throw Error("Test initialize failed.");
       
       ts_id = ret['data']['tsid'];
