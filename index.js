@@ -23,6 +23,11 @@ const options = {
 function execute_test(accesskey, projectid, packagefile, testsetname) {
   var auth_token = accesskey.split(':');
 
+  // testsetname limit 100
+  if (testsetname.length > 99) {
+    testsetname = testsetname.substr(0,99)
+  }
+  
   return new Promise((resolve, reject) => {
     const options = {
       method: "POST",
