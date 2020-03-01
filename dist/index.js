@@ -2295,11 +2295,6 @@ const options = {
 function execute_test(accesskey, projectid, packagefile, testsetname) {
   var auth_token = accesskey.split(':');
 
-  // testsetname limit 100
-  if (testsetname.length > 99) {
-    testsetname = testsetname.substr(0,99)
-  }
-  
   return new Promise((resolve, reject) => {
     const options = {
       method: "POST",
@@ -2437,6 +2432,23 @@ function get_error_in_json(json_string) {
   return errors;
 }
 
+function clear_commit_message(commit_message) {
+  var ret_message = commit_message;
+  try {
+    if (ret_message.length > 99) {
+      ret_message = ret_message.substr(0,99)
+    }
+    
+    if (ret_message.indexOf('\n')) {
+      ret_message = ret_message.substr(0, ret_message.indexOf('\n'));
+    }
+  } catch (error) {
+    ret_message = null;
+  }
+
+  return ret_message;
+}
+
 // most @actions toolkit packages have async methods
 async function run() {
   try {
@@ -2464,6 +2476,7 @@ async function run() {
     var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
       testsetname = github.context.payload.head_commit.message;
+      testsetname = clear_commit_message(testsetname);
       if (!testsetname)
         testsetname = github.context.sha;
     }
@@ -2536,7 +2549,7 @@ async function run() {
   }
 }
 
-module.exports = {get_error_in_xml, get_error_in_json, get_result, execute_test, check_finish};
+module.exports = {get_error_in_xml, get_error_in_json, get_result, execute_test, check_finish, clear_commit_message};
 if (require.main === require.cache[eval('__filename')]) {
   run();
 }
