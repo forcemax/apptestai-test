@@ -15,7 +15,7 @@ const files = [
   // 'test-results/tests.xml'
 ]
 
-const rootDirectory = './test-results'
+const rootDirectory = './test-results/'
 const options = {
     continueOnError: false
 }
