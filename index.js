@@ -168,7 +168,7 @@ function clear_commit_message(commit_message) {
       ret_message = ret_message.substr(0,99)
     }
     
-    if (ret_message.indexOf('\n')) {
+    if (ret_message.indexOf('\n') !== -1) {
       ret_message = ret_message.substr(0, ret_message.indexOf('\n'));
     }
   } catch (error) {
