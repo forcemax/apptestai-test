@@ -2280,15 +2280,14 @@ const xml2js = __webpack_require__(992)
 const c = __webpack_require__(14);
 
 const artifactClient = artifact.create()
-const artifactName = 'apptest.ai_test_results';
+const artifactName = 'apptest.ai_test_results.html';
 
 const files = [
-  'test-results/tests.html'
-  // 'test-results/tests.html',
+  'tests.html'
   // 'test-results/tests.xml'
 ]
 
-const rootDirectory = '.'
+const rootDirectory = './test-results'
 const options = {
     continueOnError: false
 }
