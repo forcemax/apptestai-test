@@ -11,8 +11,9 @@ const artifactClient = artifact.create()
 const artifactName = 'apptest.ai_test_results';
 
 const files = [
-  'test-results/tests.html',
-  'test-results/tests.xml'
+  'test-results/tests.html'
+  // 'test-results/tests.html',
+  // 'test-results/tests.xml'
 ]
 
 const rootDirectory = '.'
@@ -254,8 +255,8 @@ async function run() {
           create_test_results_directory();
           core.info((new Date()).toTimeString() + " Test result(Full HTML) saved: test-results/tests.html");
           create_test_result_file("tests.html", ret['data']['result_html']);
-          core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
-          create_test_result_file("tests.xml", ret['data']['result_xml']);
+          // core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
+          // create_test_result_file("tests.xml", ret['data']['result_xml']);
       
           running = false;
         }
