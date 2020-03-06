@@ -2287,7 +2287,7 @@ const files = [
   // 'test-results/tests.xml'
 ]
 
-const rootDirectory = './test-results/'
+const rootDirectory = 'test-results/'
 const options = {
     continueOnError: false
 }
@@ -2358,7 +2358,7 @@ function check_finish(accesskey, projectid, ts_id) {
 }
 
 function create_test_results_directory() {
-  var dir = './test-results';
+  var dir = 'test-results';
 
   if (!fs.existsSync(dir)){
       fs.mkdirSync(dir);
@@ -2366,7 +2366,7 @@ function create_test_results_directory() {
 }
 
 function create_test_result_file(filename, content) {
-  var dir = './test-results';
+  var dir = 'test-results';
   var filepath = dir + '/' + filename;
 
   fs.writeFile(filepath, content, (error) => {
