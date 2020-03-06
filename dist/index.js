@@ -2287,7 +2287,7 @@ const files = [
   // 'test-results/tests.xml'
 ]
 
-const rootDirectory = 'test-results/'
+const rootDirectory = '.'
 const options = {
     continueOnError: false
 }
@@ -2490,7 +2490,7 @@ async function run() {
         throw Error("Test initialize failed.");
       
       ts_id = ret['data']['tsid'];
-      core.info((new Date()).toTimeString() + " Test initated.");
+      core.info((new Date()).toTimeString() + " Test initiated.");
     } catch(error) {
       // Promise rejected
       throw Error(error);
@@ -2526,8 +2526,8 @@ async function run() {
           create_test_results_directory();
           core.info((new Date()).toTimeString() + " Test result(Full HTML) saved: test-results/tests.html");
           create_test_result_file("tests.html", ret['data']['result_html']);
-          // core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
-          // create_test_result_file("tests.xml", ret['data']['result_xml']);
+          core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
+          create_test_result_file("tests.xml", ret['data']['result_xml']);
       
           running = false;
         }
