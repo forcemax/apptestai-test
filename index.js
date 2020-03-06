@@ -11,7 +11,7 @@ const artifactClient = artifact.create()
 const artifactName = 'apptest.ai_test_results.html';
 
 const files = [
-  'tests.html'
+  'test-results/tests.html'
   // 'test-results/tests.xml'
 ]
 
