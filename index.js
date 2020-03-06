@@ -8,7 +8,7 @@ const xml2js = require('xml2js')
 const c = require('ansi-colors');
 
 const artifactClient = artifact.create()
-const artifactName = 'apptest.ai_test_results.html';
+const artifactName = 'apptest.ai_test_results';
 
 const files = [
   'test-results/tests.html'
@@ -47,7 +47,7 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
         resolve(jsonbody);
       } else {
         if (error) 
-          reject(new Error("test execution failed."));
+          reject(new Error("Test initiation failed."));
         else {
           reject(new Error("HTTP status code : " + String(response.statusCode)));
         }
@@ -76,7 +76,7 @@ function check_finish(accesskey, projectid, ts_id) {
         resolve(jsonbody);
       } else {
         if (error) 
-          reject(new Error("test execution failed."));
+          reject(new Error("Check finish failed."));
         else {
           reject(new Error("HTTP status code : " + String(response.statusCode)));
         }
