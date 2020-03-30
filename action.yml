@@ -2,19 +2,34 @@ name: 'apptestai-test'
 description: 'github action for apptest.ai test execution'
 author: 'Jae-cheol Kim <forcemax@gmail.com>'
 inputs:
-  accesskey:
+  access_key:
     description: 'apptest.ai access key'
     required: true
-  projectid:
+  project_id:
     description: 'apptest.ai project id'
     required: true
-  packagefile:
+  binary_path:
     description: 'package file'
     required: true
-  testsetname:
-    description: 'test set name (default: github context sha)'
+  testset_name:
+    description: 'test set name (default: github commit message).'
     required: false
-      
+  time_limit:
+    description: 'Test time limit (minutes) (range: 5 - 30). If the value is empty, it follows the time-limit saved in the project.'
+    required: false
+  use_vo:
+    description: 'Whether AT&T Video Optimizer(ARO) is used. (true|false) (default: false)'
+    required: false
+  callback:
+    description: 'Callback URL to be called after test completion.'
+    required: false
+  login_id:
+    description: 'ID of the test account required to test the app. If the value is empty, it follows the time-limit saved in the project.'
+    required: false
+  login_pw:
+    description: 'Password of the test account required to test the app. If the value is empty, it follows the time-limit saved in the project.'
+    required: false
+    
 runs:
   using: 'node12'
   main: 'dist/index.js'

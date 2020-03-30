@@ -4,7 +4,6 @@ const core = require('@actions/core');
 const wait = require('./wait');
 const request = require('request');
 const fs = require('fs');
-const xml2js = require('xml2js')
 const c = require('ansi-colors');
 
 const artifactClient = artifact.create()
@@ -20,13 +19,30 @@ const options = {
     continueOnError: false
 }
 
-function execute_test(accesskey, projectid, packagefile, testsetname) {
+function execute_test(accesskey, projectid, packagefile, params) {
   var auth_token = accesskey.split(':');
 
   return new Promise((resolve, reject) => {
+    var data = "";
+    data += "{\"pid\":"+String(projectid);
+    data += ", \"testset_name\": \""+params['testset_name']+"\"";
+    if (params['time_limit']) {
+      data += ", \"time_limit\": "+params['time_limit'];
+    }
+    if (params['use_vo']) {
+      data += ", \"use_vo\": "+params['use_vo'];
+    }
+    if (params['callback']) {
+      data += ", \"callback\": "+params['callback'];
+    }
+    if ('credentials' in params && params['credentials']['login_id'] && params['credentials']['login_pw']) {
+      data += ", \"credentials\": { \"login_id\": \"" + params['credentials']['login_id'] + "\", \"login_pw\": \"" + params['params']['login_pw'] + "\"}";
+    }
+    data += "}";
+
     const options = {
       method: "POST",
-      url: "https://api.apptest.ai/openapi/v1/test/run",
+      url: "https://api.apptest.ai/openapi/v2/testset",
       port: 443,
       auth: {
         user: auth_token[0],
@@ -36,8 +52,8 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
         "Content-Type": "multipart/form-data"
       },
       formData : {
-        "apk_file": fs.createReadStream(packagefile),
-        "data": "{\"pid\":"+String(projectid)+", \"test_set_name\":\""+testsetname+"\"}"
+        "app_file": fs.createReadStream(packagefile),
+        "data": data
       }
     };
 
@@ -56,13 +72,13 @@ function execute_test(accesskey, projectid, packagefile, testsetname) {
   });
 }
 
-function check_finish(accesskey, projectid, ts_id) {
+function check_complete(accesskey, ts_id) {
   var auth_token = accesskey.split(':');
 
   return new Promise((resolve, reject) => {
     const options = {
       method: "GET",
-      url: "https://api.apptest.ai/openapi/v1/project/"+String(projectid)+"/testset/" + String(ts_id) + "/result/all",
+      url: "https://api.apptest.ai/openapi/v2/testset/" + String(ts_id),
       port: 443,
       auth: {
         user: auth_token[0],
@@ -76,7 +92,36 @@ function check_finish(accesskey, projectid, ts_id) {
         resolve(jsonbody);
       } else {
         if (error) 
-          reject(new Error("Check finish failed."));
+          reject(new Error("Check complete failed."));
+        else {
+          reject(new Error("Check complete failed : HTTP status code " + String(response.statusCode)));
+        }
+      }
+    });
+  });
+}
+
+function get_test_result(accesskey, ts_id) {
+  var auth_token = accesskey.split(':');
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      method: "GET",
+      url: "https://api.apptest.ai/openapi/v2/testset/"+String(ts_id)+"/result",
+      port: 443,
+      auth: {
+        user: auth_token[0],
+        pass: auth_token[1]
+      }
+    };
+
+    request(options, function (error, response, body) {
+      if (!error && response.statusCode == 200) {
+        var jsonbody = JSON.parse(body);
+        resolve(jsonbody);
+      } else {
+        if (error) 
+          reject(new Error("Get result failed."));
         else {
           reject(new Error("HTTP status code : " + String(response.statusCode)));
         }
@@ -104,7 +149,7 @@ function create_test_result_file(filename, content) {
   });
 }
 
-function get_result(json_string, error_only=false) {
+function make_result(json_string, error_only=false) {
   var result = JSON.parse(json_string);
   var outputTable = "\n";
   outputTable += '+-----------------------------------------------------------------+\n';
@@ -124,29 +169,7 @@ function get_result(json_string, error_only=false) {
   return outputTable;
 }
 
-function get_error_in_xml(xml_string) {
-  var parser = xml2js.Parser({ attrkey: "ATTR" });
-  var errors = new Array();
-
-  try {
-    parser.parseString(xml_string, function(err, result) {
-      if (err) {
-        return;
-      }
-      var testcases = result['testsuites']['testsuite'][0]['testcase'];
-      testcases.forEach(element => {
-        if ('error' in element) {
-          errors.push(element);
-        }
-      });
-    });
-    return errors;
-  } catch (error) {
-    return;
-  }
-}
-
-function get_error_in_json(json_string) {
+function get_errors(json_string) {
   var result = JSON.parse(json_string);
   var errors = new Array();
   
@@ -184,6 +207,12 @@ async function run() {
     const accesskey = core.getInput('access_key');
     const projectid = core.getInput('project_id');
     const binarypath = core.getInput('binary_path');
+    var testsetname = core.getInput('testset_name');
+    const timelimit = core.getInput('time_limit');
+    const usevo = core.getInput('use_vo');
+    const callback = core.getInput('callback');
+    const loginid = core.getInput('login_id');
+    const loginpw = core.getInput('login_pw');
 
     if (!accesskey) {
       throw Error("access_key is required parameter.");
@@ -201,7 +230,6 @@ async function run() {
       throw Error("binary_path file not exists.")
     }
 
-    var testsetname = core.getInput('test_set_name');
     if (!testsetname) {
       testsetname = github.context.payload.head_commit.message;
       testsetname = clear_commit_message(testsetname);
@@ -211,14 +239,24 @@ async function run() {
 
     var ts_id;
     try {
-      let http_promise_execute = execute_test(accesskey, projectid, binarypath, testsetname);
+      var params = {}
+      params['testset_name'] = testsetname;
+      params['time_limit'] = timelimit;
+      params['use_vo'] = usevo;
+      params['callback'] = callback;
+      var credentials = {}
+      credentials['login_id'] = loginid;
+      credentials['login_pw'] = loginpw;
+      params['credentials'] = credentials;
+
+      let http_promise_execute = execute_test(accesskey, projectid, binarypath, params);
       let ret = await http_promise_execute;
 
-      if (!('tsid' in ret['data']))
+      if (!('testset_id' in ret['data']))
         throw Error("Test initialize failed.");
       
-      ts_id = ret['data']['tsid'];
-      core.info((new Date()).toTimeString() + " Test initiated.");
+      ts_id = ret['data']['testset_id'];
+      core.info("Test initiated.");
     } catch(error) {
       // Promise rejected
       throw Error(error);
@@ -230,31 +268,34 @@ async function run() {
       // wait for next try
       await wait(15000);
       step_count = step_count + 1;
-      core.info((new Date()).toTimeString() + " Test is progressing... " + String(step_count * 15) + "sec.");
+      core.info("Test is progressing... " + String(step_count * 15) + "sec.");
       
       try {
-        let http_promise_check = check_finish(accesskey, projectid, ts_id);
+        let http_promise_check = check_complete(accesskey, ts_id);
         let ret = await http_promise_check;
 
-        if (ret['complete'] == true) {
-          core.info((new Date()).toTimeString() + " Test finished.");
+        if (ret['data']['testset_status'] == 'Complete') {
+          core.info("Test finished.");
 
-          var errors = get_error_in_json(ret['data']['result_json']);
+          let http_promise_check = get_test_result(accesskey, ts_id);
+          let ret = await http_promise_check;
+  
+          var errors = get_errors(ret['data']['result_json']);
           if (errors) {
-            var output_table = get_result(ret['data']['result_json']);
+            var output_table = make_result(ret['data']['result_json']);
             core.info(output_table);
 
             if (errors.length > 0) {
               c.enabled = false;
-              var output_error = get_result(ret['data']['result_json'], true);
+              var output_error = make_result(ret['data']['result_json'], true);
               core.setFailed(output_error);
             }
           }
 
           create_test_results_directory();
-          core.info((new Date()).toTimeString() + " Test result(Full HTML) saved: test-results/tests.html");
+          core.info("Test result(Full HTML) saved: test-results/tests.html");
           create_test_result_file("tests.html", ret['data']['result_html']);
-          core.info((new Date()).toTimeString() + " Test result(JUnit XML) saved: test-results/tests.xml");
+          core.info("Test result(JUnit XML) saved: test-results/tests.xml");
           create_test_result_file("tests.xml", ret['data']['result_xml']);
       
           running = false;
@@ -270,14 +311,14 @@ async function run() {
         }
       }
     }
-    core.info((new Date()).toTimeString() + " Upload artifacts");
+    core.info("Upload artifacts");
     await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
   } catch (error) {
     core.setFailed(error);
   }
 }
 
-module.exports = {get_error_in_xml, get_error_in_json, get_result, execute_test, check_finish, clear_commit_message};
+module.exports = {get_errors, make_result, execute_test, check_complete, get_test_result, clear_commit_message};
 if (require.main === module) {
   run();
 }
