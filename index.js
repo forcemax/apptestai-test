@@ -123,7 +123,7 @@ function get_test_result(accesskey, ts_id) {
         if (error) 
           reject(new Error("Get result failed."));
         else {
-          reject(new Error("HTTP status code : " + String(response.statusCode)));
+          reject(new Error("Get result failed : HTTP status code " + String(response.statusCode)));
         }
       }
     });
