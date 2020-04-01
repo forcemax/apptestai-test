@@ -2340,16 +2340,14 @@ function execute_test(accesskey, projectid, packagefile, params) {
 
   return new Promise((resolve, reject) => {
     var data = "";
-    data += "{\"pid\":"+String(projectid);
-    data += ", \"testset_name\": \""+params['testset_name']+"\"";
-    if (params['time_limit']) {
-      data += ", \"time_limit\": "+params['time_limit'];
+    data += "{\"pid\": "+String(projectid);
+    data += ", \"testset_name\": \"" + params['testset_name'] + "\"";
+    if (params['time_limit'] >= 5 && params['time_limit'] <= 30) {
+      data += ", \"time_limit\": " + params['time_limit'];
     }
-    if (params['use_vo']) {
-      data += ", \"use_vo\": "+params['use_vo'];
-    }
+    data += ", \"use_vo\": " + String(params['use_vo']);
     if (params['callback']) {
-      data += ", \"callback\": "+params['callback'];
+      data += ", \"callback\": \"" + params['callback'] + "\"";
     }
     if ('credentials' in params && params['credentials']['login_id'] && params['credentials']['login_pw']) {
       data += ", \"credentials\": { \"login_id\": \"" + params['credentials']['login_id'] + "\", \"login_pw\": \"" + params['params']['login_pw'] + "\"}";
@@ -2423,7 +2421,7 @@ function get_test_result(accesskey, ts_id) {
   return new Promise((resolve, reject) => {
     const options = {
       method: "GET",
-      url: "https://api.apptest.ai/openapi/v2/testset/"+String(ts_id)+"/result",
+      url: "https://api.apptest.ai/openapi/v2/testset/" + String(ts_id) + "/result",
       port: 443,
       auth: {
         user: auth_token[0],
@@ -2516,6 +2514,20 @@ function clear_commit_message(commit_message) {
   return ret_message;
 }
 
+function getBoolean(value) {
+  switch(value){
+       case true:
+       case "true":
+       case 1:
+       case "1":
+       case "on":
+       case "yes":
+           return true;
+       default: 
+           return false;
+   }
+}
+
 // most @actions toolkit packages have async methods
 async function run() {
   try {
@@ -2523,9 +2535,10 @@ async function run() {
     const accesskey = core.getInput('access_key');
     const projectid = core.getInput('project_id');
     const binarypath = core.getInput('binary_path');
+
     var testsetname = core.getInput('testset_name');
-    const timelimit = core.getInput('time_limit');
-    const usevo = core.getInput('use_vo');
+    const timelimit = Number(core.getInput('time_limit')) || 0;
+    const usevo = getBoolean(core.getInput('use_vo'));
     const callback = core.getInput('callback');
     const loginid = core.getInput('login_id');
     const loginpw = core.getInput('login_pw');
@@ -2569,7 +2582,7 @@ async function run() {
       let ret = await http_promise_execute;
 
       if (!('testset_id' in ret['data']))
-        throw Error("Test initialize failed.");
+        throw Error("Test initialize failed: invalid response.");
       
       ts_id = ret['data']['testset_id'];
       core.info("Test initiated.");
