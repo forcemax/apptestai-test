@@ -2350,7 +2350,7 @@ function execute_test(accesskey, projectid, packagefile, params) {
       data += ", \"callback\": \"" + params['callback'] + "\"";
     }
     if ('credentials' in params && params['credentials']['login_id'] && params['credentials']['login_pw']) {
-      data += ", \"credentials\": { \"login_id\": \"" + params['credentials']['login_id'] + "\", \"login_pw\": \"" + params['params']['login_pw'] + "\"}";
+      data += ", \"credentials\": { \"login_id\": \"" + params['credentials']['login_id'] + "\", \"login_pw\": \"" + params['credentials']['login_pw'] + "\"}";
     }
     data += "}";
 
@@ -2501,7 +2501,7 @@ function clear_commit_message(commit_message) {
   var ret_message = commit_message;
   try {
     if (ret_message.length > 99) {
-      ret_message = ret_message.substr(0,99)
+      ret_message = ret_message.substr(0,99);
     }
     
     if (ret_message.indexOf('\n') !== -1) {
@@ -2556,7 +2556,7 @@ async function run() {
     }
 
     if (!fs.existsSync(binarypath)) {
-      throw Error("binary_path file not exists.")
+      throw Error("binary_path file not exists.");
     }
 
     if (!testsetname) {
@@ -2568,12 +2568,12 @@ async function run() {
 
     var ts_id;
     try {
-      var params = {}
+      var params = {};
       params['testset_name'] = testsetname;
       params['time_limit'] = timelimit;
       params['use_vo'] = usevo;
       params['callback'] = callback;
-      var credentials = {}
+      var credentials = {};
       credentials['login_id'] = loginid;
       credentials['login_pw'] = loginpw;
       params['credentials'] = credentials;
