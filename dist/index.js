@@ -2379,7 +2379,7 @@ function execute_test(accesskey, projectid, packagefile, params) {
         if (error) 
           reject(new Error("Test initiation failed."));
         else {
-          reject(new Error("HTTP status code : " + String(response.statusCode)));
+          reject(new Error("Test initiation failed : HTTP status code " + String(response.statusCode)));
         }
       }
     });
@@ -2532,9 +2532,12 @@ function getBoolean(value) {
 async function run() {
   try {
     var running = true;
-    const accesskey = core.getInput('access_key');
-    const projectid = core.getInput('project_id');
-    const binarypath = core.getInput('binary_path');
+    const required_options = {
+      required: true
+    }
+    const accesskey = core.getInput('access_key', required_options);
+    const projectid = core.getInput('project_id', required_options);
+    const binarypath = core.getInput('binary_path', required_options);
 
     var testsetname = core.getInput('testset_name');
     const timelimit = Number(core.getInput('time_limit')) || 0;
@@ -2561,10 +2564,14 @@ async function run() {
 
     if (!testsetname) {
       testsetname = github.context.payload.head_commit.message;
-      testsetname = clear_commit_message(testsetname);
-      if (!testsetname)
-        testsetname = github.context.sha;
     }
+    if (!testsetname) {
+      testsetname = github.context.sha;
+    }
+    if (!testsetname) {
+      testsetname = 'no commit message';
+    }
+    testsetname = clear_commit_message(testsetname);
 
     var ts_id;
     try {
@@ -2643,11 +2650,11 @@ async function run() {
     core.info("Upload artifacts");
     await artifactClient.uploadArtifact(artifactName, files, rootDirectory, options)
   } catch (error) {
-    core.setFailed(error);
+    core.setFailed('error : ' + error);
   }
 }
 
-module.exports = {get_errors, make_result, execute_test, check_complete, get_test_result, clear_commit_message};
+module.exports = {get_errors, make_result, execute_test, check_complete, get_test_result, clear_commit_message, getBoolean};
 if (require.main === require.cache[eval('__filename')]) {
   run();
 }
