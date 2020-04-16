@@ -2326,8 +2326,8 @@ const artifactClient = artifact.create()
 const artifactName = 'apptest.ai_test_results';
 
 const files = [
-  'test-results/tests.html'
-  // 'test-results/tests.xml'
+  'test-results/tests.html',
+  'test-results/tests.xml'
 ]
 
 const rootDirectory = '.'
@@ -2349,7 +2349,7 @@ function execute_test(accesskey, projectid, packagefile, params) {
     if (params['callback']) {
       data += ", \"callback\": \"" + params['callback'] + "\"";
     }
-    if ('credentials' in params && params['credentials']['login_id'] && params['credentials']['login_pw']) {
+    if ('credentials' in params && params['credentials']['login_id'].length > 0 && params['credentials']['login_pw'].length > 0) {
       data += ", \"credentials\": { \"login_id\": \"" + params['credentials']['login_id'] + "\", \"login_pw\": \"" + params['credentials']['login_pw'] + "\"}";
     }
     data += "}";
